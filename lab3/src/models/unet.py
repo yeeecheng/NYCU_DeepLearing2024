@@ -41,8 +41,8 @@ class UpSampling(nn.Module):
     def forward(self, x, cropped_x):
         x = self.de_conv(x)
         # calculate the difference between x (expansive path) and cropped_x (contracting_path)
-        diff_x = cropped_x.shape[1] - x.shape[1]
-        diff_y = cropped_x.shape[2] - x.shape[2]
+        diff_x = cropped_x.shape[2] - x.shape[2]
+        diff_y = cropped_x.shape[3] - x.shape[3]
         # padding input shape with dim1 of (diff_x // 2, diff_x - diff_x // 2) and dim2 of (diff_y // 2, diff_y - diff_y // 2) 
         x = F.pad(x, [diff_x // 2, diff_x - diff_x // 2, diff_y // 2, diff_y - diff_y // 2])
         # concat cropped_x and x
