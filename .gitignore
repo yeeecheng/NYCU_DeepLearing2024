@@ -1,6 +1,7 @@
 */assets
 */__pycache__
 */*/__pycache__
+*/*/*/__pycache__
 /lab2/dataset
 */*/*.ckpt
 /lab3/dataset

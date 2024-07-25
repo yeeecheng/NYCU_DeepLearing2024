@@ -4,6 +4,7 @@ from tqdm import tqdm
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from models.unet import *
+from models.resnet34_unet import *
 from utils import *
 from torchvision import transforms
 from evaluate import *
@@ -24,13 +25,20 @@ def train(args):
     EPOCHS = args.epochs
     BATCH_SIZE = args.batch_size
     LR = args.learning_rate
+    NET = args.net
     train_dataloader = DataLoader(train_dataset, BATCH_SIZE, shuffle= True)
     val_dataloader = DataLoader(val_dataset, BATCH_SIZE, shuffle= False)    
 
-    model = UNet(3, 2).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr= LR, momentum= 0.99)
-
+    if NET == "UNet":
+        model = UNet(3, 2).to(device)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr= LR, momentum= 0.99)
+    
+    elif NET == "ResNet34_UNet":
+        model = ResNet34_UNet(3, 2).to(device)
+        criterion = nn.CrossEntropyLoss()
+        # lr of 1e-3, batch size of 6
+        optimizer = torch.optim.SGD(model.parameters(), lr= LR)
     best_acc = 0
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
@@ -84,6 +92,7 @@ def get_args():
     parser.add_argument('--epochs', '-e', type=int, default=5, help='number of epochs')
     parser.add_argument('--batch_size', '-b', type=int, default=1, help='batch size')
     parser.add_argument('--learning-rate', '-lr', type=float, default=1e-5, help='learning rate')
+    parser.add_argument('--net', '-n', type=str, default="UNet")
 
     return parser.parse_args()
 
