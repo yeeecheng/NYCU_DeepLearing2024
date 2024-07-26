@@ -6,7 +6,7 @@ from utils import *
 def evaluate(net, val_dataloader, device):
     
 
-    criterion = nn.BCELoss()
+    criterion = nn.CrossEntropyLoss()
     net.eval()
 
     batch_val_loss = []
@@ -16,9 +16,9 @@ def evaluate(net, val_dataloader, device):
         for batch in tqdm(val_dataloader):
 
             imgs, masks = batch["image"], batch["mask"]
-            masks_pred = net(imgs.to(device)).squeeze(1)
+            masks_pred = net(imgs.to(device))
             loss = criterion(masks_pred, masks.to(device))
-            acc = dice_score(masks_pred, masks.to(device))
+            acc = dice_score( torch.argmax(masks_pred, dim=1),masks.to(device))
             
             batch_val_acc.append(acc)
             batch_val_loss.append(loss.item())

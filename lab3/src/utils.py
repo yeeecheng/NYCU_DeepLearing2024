@@ -26,6 +26,18 @@ def draw_history(history):
     plt.show()
 
 
-def show_img(img):
-    plt.imshow(img)
+def show_img(org_img, img):
+    plt.imshow(org_img)
+    plt.show()
+    # 繪製貓和狗的分割結果
+    plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.imshow(img[0])
+    plt.title('Cat')
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(img[1])
+    plt.title('Dog')
+
     plt.show()

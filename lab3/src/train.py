@@ -8,12 +8,14 @@ from models.resnet34_unet import *
 from utils import *
 from torchvision import transforms
 from evaluate import *
+import torch.nn.functional as F
 
 def train(args):
     
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     train_transforms = transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),
         transforms.ElasticTransform(),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(degrees= 15),
@@ -30,13 +32,13 @@ def train(args):
     val_dataloader = DataLoader(val_dataset, BATCH_SIZE, shuffle= False)    
 
     if NET == "UNet":
-        model = UNet(3, 1).to(device)
-        criterion = nn.BCELoss()
+        model = UNet(3, 2).to(device)
+        criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr= LR, momentum= 0.99)
     
     elif NET == "ResNet34_UNet":
-        model = ResNet34_UNet(3, 1).to(device)
-        criterion = nn.BCELoss()
+        model = ResNet34_UNet(3, 2).to(device)
+        criterion = nn.CrossEntropyLoss()
         # lr of 1e-3, batch size of 6
         optimizer = torch.optim.SGD(model.parameters(), lr= LR)
     best_acc = 0
@@ -54,15 +56,16 @@ def train(args):
             imgs, masks = batch["image"], batch["mask"]
             optimizer.zero_grad()
             # batch, channel (num_classes), W, H
-            masks_pred = model(imgs.to(device)).squeeze(1)
+
+            masks_pred = model(imgs.to(device))
 
             loss = criterion(masks_pred, masks.to(device))
-    
-            show_img( np.where( masks_pred.cpu().detach().numpy()[0] > 0.5, 1, 0))
             
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             loss.backward()
             optimizer.step()
-            acc = dice_score(masks_pred, masks.to(device))
+
+            acc = dice_score(torch.argmax(masks_pred, dim=1),masks.to(device))
 
             batch_train_acc.append(acc)
             batch_train_loss.append(loss.item())

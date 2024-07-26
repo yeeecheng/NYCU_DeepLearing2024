@@ -35,7 +35,7 @@ class UpSampling(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UpSampling, self).__init__()
 
-        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2)
+        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2, bias= False)
         self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x, cropped_x):
@@ -66,8 +66,7 @@ class UNet(nn.Module):
         self.expansive3 = UpSampling(256, 128)
         self.expansive4 = UpSampling(128, 64)
         self.output = nn.Sequential(
-            nn.Conv2d(64, num_classes, kernel_size= (1, 1)),
-            nn.Sigmoid()
+            nn.Conv2d(64, num_classes, kernel_size= (1, 1))
         )
 
     def forward(self, x):
