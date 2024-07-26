@@ -116,7 +116,8 @@ class ResNet34_UNet(nn.Module):
         self.unet_double_conv4 = DoubleConv(64 + 64, 64)
         self.unet_up_conv5 = UpSampling(64, 32)
         self.output = nn.Sequential(
-            nn.Conv2d(32, num_classes, kernel_size= (1, 1))
+            nn.Conv2d(32, num_classes, kernel_size= (1, 1)),
+            nn.Sigmoid()
         )
 
     def forward(self, x):

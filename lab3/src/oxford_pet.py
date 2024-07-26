@@ -92,7 +92,7 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
 
         # convert to other format HWC -> CHW
         sample["image"] = torch.as_tensor(np.moveaxis(image, -1, 0)).float()
-        sample["mask"] = torch.as_tensor(mask).long()
+        sample["mask"] = torch.as_tensor(mask).float()
         sample["trimap"] = np.expand_dims(trimap, 0)
 
         return sample

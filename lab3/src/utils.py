@@ -24,3 +24,8 @@ def draw_history(history):
 
     plt.savefig('acc_loss_history.png')
     plt.show()
+
+
+def show_img(img):
+    plt.imshow(img)
+    plt.show()
