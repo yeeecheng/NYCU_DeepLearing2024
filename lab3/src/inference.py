@@ -21,15 +21,15 @@ def inference(args):
     test_dataloader = DataLoader(test_dataset, BATCH_SIZE, shuffle= False)
 
     if NET == "UNet":
-        model = UNet(3, 2).to(device)
+        model = UNet(3, 1).to(device)
         model.load_state_dict(torch.load(PRE_TRAIN_MODEL))
 
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCELoss()
 
     elif NET == "ResNet34_UNet":
-        model = ResNet34_UNet(3, 2).to(device)
+        model = ResNet34_UNet(3, 1).to(device)
         model.load_state_dict(torch.load(PRE_TRAIN_MODEL))
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.BCELoss()
     
     model.eval()
 
@@ -42,7 +42,7 @@ def inference(args):
             imgs, masks = batch["image"], batch["mask"]
             masks_pred = model(imgs.to(device))
             loss = criterion(masks_pred, masks.to(device))
-            acc = dice_score(torch.argmax(masks_pred, dim= 1), masks.to(device))
+            acc = dice_score(masks_pred, masks.to(device))
             
             batch_test_acc.append(acc)
             batch_test_loss.append(loss.item())

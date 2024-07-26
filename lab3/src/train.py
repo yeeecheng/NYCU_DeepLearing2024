@@ -49,7 +49,7 @@ def train(args):
         batch_train_loss = []
         batch_train_acc = []
 
-        for batch in tqdm(val_dataloader):
+        for batch in tqdm(train_dataloader):
 
             imgs, masks = batch["image"], batch["mask"]
             optimizer.zero_grad()
