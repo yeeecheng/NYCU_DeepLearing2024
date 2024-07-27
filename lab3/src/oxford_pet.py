@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from urllib.request import urlretrieve
-from torchvision import transforms
+import albumentations as A
 
 class OxfordPetDataset(torch.utils.data.Dataset):
     def __init__(self, root, mode="train", transform=None, masks_transform= None):
@@ -38,9 +38,8 @@ class OxfordPetDataset(torch.utils.data.Dataset):
 
         sample = dict(image=image, mask=mask, trimap= trimap)
         if self.transform is not None:
-            sample["image"] = np.array(self.transform(Image.fromarray(sample["image"])))
-        if self.masks_transform is not None:
-            sample["mask"] = np.array(self.masks_transform(Image.fromarray(sample["mask"])))
+            sample = self.transform(**sample)
+
         return sample
 
     @staticmethod
@@ -88,8 +87,8 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
         sample = super().__getitem__(*args, **kwargs)
 
         # resize images
-        image = np.array(Image.fromarray(sample["image"]).resize((256, 256), Image.BILINEAR))
-        mask = np.array(Image.fromarray(sample["mask"]).resize((256, 256), Image.NEAREST))
+        image = np.array(sample["image"])
+        mask = np.array(sample["mask"])
         trimap = np.array(Image.fromarray(sample["trimap"]).resize((256, 256), Image.NEAREST))
 
         # convert to other format HWC -> CHW
@@ -131,31 +130,25 @@ def extract_archive(filepath):
         shutil.unpack_archive(filepath, extract_dir)
 
 def load_dataset(data_path, mode):
-    
-    train_transforms = transforms.Compose([
-        transforms.ElasticTransform(alpha=float(250), sigma=float(10)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        transforms.ToPILImage()
-    ])
 
-    train_masks_transforms = transforms.Compose([
-        transforms.ElasticTransform(alpha=float(250), sigma=float(10)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
-    ])
-
-    test_transforms = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        transforms.ToPILImage()
-    ])
-
+    train_transforms = A.Compose(
+        [
+            A.Resize(256, 256),
+            A.HorizontalFlip(),
+            A.RandomResizedCrop(256, 256), 
+            A.Rotate(15),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ],
+    )
+    test_transforms = A.Compose(
+        [
+            A.Resize(256, 256),
+            A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ],
+    )
 
     if mode == "train":
-        dataset = SimpleOxfordPetDataset(data_path, mode= mode, transform= train_transforms, masks_transform= train_masks_transforms)
+        dataset = SimpleOxfordPetDataset(data_path, mode= mode, transform= train_transforms)
     else:
         dataset = SimpleOxfordPetDataset(data_path, mode= mode, transform= test_transforms) 
 
