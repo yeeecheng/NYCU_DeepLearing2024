@@ -52,7 +52,7 @@ def train(args):
         batch_train_loss = []
         batch_train_dice_score = []
 
-        for batch in tqdm(val_dataloader):
+        for batch in tqdm(train_dataloader):
 
             imgs, masks = batch["image"].to(device), batch["mask"].to(device)
             # batch, 1, W, H -> batch, W, H
