@@ -17,7 +17,7 @@ def inference(args):
     BATCH_SIZE = args.batch_size
     PRE_TRAIN_MODEL = args.model    
 
-    test_dataset = SimpleOxfordPetDataset(DATA_PATH, mode= "test")
+    test_dataset = load_dataset(DATA_PATH, mode= "test")
     test_dataloader = DataLoader(test_dataset, BATCH_SIZE, shuffle= False)
 
     if NET == "UNet":
@@ -34,25 +34,25 @@ def inference(args):
     model.eval()
 
     batch_test_loss = []
-    batch_test_acc = []
+    batch_test_dice_score = []
     with torch.no_grad():
 
         for batch in tqdm(test_dataloader):
 
             imgs, masks = batch["image"], batch["mask"]
             masks_pred = model(imgs.to(device)).squeeze(1)
-            acc = dice_score(masks_pred, masks.to(device).float())
-            loss = criterion(masks_pred, masks.to(device).float()) + (1 - acc)
+            dice_score = cal_dice_score(masks_pred, masks.to(device).float())
+            loss = criterion(masks_pred, masks.to(device).float()) + (1 - dice_score)
 
             for i in range(len(masks)):
                 show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0))
             
-            batch_test_acc.append(acc)
+            batch_test_dice_score.append(dice_score)
             batch_test_loss.append(loss.item())
-        test_acc = sum(batch_test_acc) / len(batch_test_acc)
+        test_dice_score = sum(batch_test_dice_score) / len(batch_test_dice_score)
         test_loss = sum(batch_test_loss) / len(batch_test_loss)
         
-        print(f"[ Test ] loss = {test_loss:.5f}, acc = {test_acc:.5f}")
+        print(f"[ Test ] loss = {test_loss:.5f}, acc = {test_dice_score:.5f}")
 
 
 

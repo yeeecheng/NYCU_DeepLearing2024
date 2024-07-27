@@ -6,15 +6,17 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from urllib.request import urlretrieve
+from torchvision import transforms
 
 class OxfordPetDataset(torch.utils.data.Dataset):
-    def __init__(self, root, mode="train", transform=None):
+    def __init__(self, root, mode="train", transform=None, masks_transform= None):
 
         assert mode in {"train", "valid", "test"}
 
         self.root = root
         self.mode = mode
         self.transform = transform
+        self.masks_transform = masks_transform
 
         self.images_directory = os.path.join(self.root, "images")
         self.masks_directory = os.path.join(self.root, "annotations", "trimaps")
@@ -31,15 +33,14 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         mask_path = os.path.join(self.masks_directory, filename + ".png")
 
         image = np.array(Image.open(image_path).convert("RGB"))
-
         trimap = np.array(Image.open(mask_path))
         mask = self._preprocess_mask(trimap)
 
-        sample = dict(image=image, mask=mask, trimap=trimap)
+        sample = dict(image=image, mask=mask, trimap= trimap)
         if self.transform is not None:
             sample["image"] = np.array(self.transform(Image.fromarray(sample["image"])))
-            sample["mask"] = np.array(self.transform(Image.fromarray(sample["mask"])))
-
+        if self.masks_transform is not None:
+            sample["mask"] = np.array(self.masks_transform(Image.fromarray(sample["mask"])))
         return sample
 
     @staticmethod
@@ -61,24 +62,24 @@ class OxfordPetDataset(torch.utils.data.Dataset):
             filenames = [x for i, x in enumerate(filenames) if i % 10 == 0]
         return filenames
 
-@staticmethod
-def download(root):
+    @staticmethod
+    def download(root):
 
-    # load images
-    filepath = os.path.join(root, "images.tar.gz")
-    download_url(
-        url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz",
-        filepath=filepath,
-    )
-    extract_archive(filepath)
+        # load images
+        filepath = os.path.join(root, "images.tar.gz")
+        download_url(
+            url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz",
+            filepath=filepath,
+        )
+        extract_archive(filepath)
 
-    # load annotations
-    filepath = os.path.join(root, "annotations.tar.gz")
-    download_url(
-        url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz",
-        filepath=filepath,
-    )
-    extract_archive(filepath)
+        # load annotations
+        filepath = os.path.join(root, "annotations.tar.gz")
+        download_url(
+            url="https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz",
+            filepath=filepath,
+        )
+        extract_archive(filepath)
 
 
 class SimpleOxfordPetDataset(OxfordPetDataset):
@@ -93,7 +94,7 @@ class SimpleOxfordPetDataset(OxfordPetDataset):
 
         # convert to other format HWC -> CHW
         sample["image"] = torch.as_tensor(np.moveaxis(image, -1, 0)).float()
-        sample["mask"] = torch.as_tensor(mask).long()
+        sample["mask"] = mask
         sample["trimap"] = np.expand_dims(trimap, 0)
 
         return sample
@@ -130,6 +131,32 @@ def extract_archive(filepath):
         shutil.unpack_archive(filepath, extract_dir)
 
 def load_dataset(data_path, mode):
-    # implement the load dataset function here
+    
+    train_transforms = transforms.Compose([
+        transforms.ElasticTransform(alpha=float(250), sigma=float(10)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(15),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.ToPILImage()
+    ])
 
-    assert False, "Not implemented yet!"
+    train_masks_transforms = transforms.Compose([
+        transforms.ElasticTransform(alpha=float(250), sigma=float(10)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(15),
+    ])
+
+    test_transforms = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.ToPILImage()
+    ])
+
+
+    if mode == "train":
+        dataset = SimpleOxfordPetDataset(data_path, mode= mode, transform= train_transforms, masks_transform= train_masks_transforms)
+    else:
+        dataset = SimpleOxfordPetDataset(data_path, mode= mode, transform= test_transforms) 
+
+    return dataset

@@ -75,4 +75,5 @@ class UNet(nn.Module):
         x = self.expansive2(x, c3)
         x = self.expansive3(x, c2)
         x = self.expansive4(x, c1)
+        
         return self.output(x)

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 
 
-def dice_score(pred_mask, gt_mask):
+def cal_dice_score(pred_mask, gt_mask):
     # 2 * (common pixel of pred_mask and gt_mask) / (pred_mask's 1 + gt_mask's 1)
     # pixel is 1 means not exist
     
@@ -16,14 +16,14 @@ def dice_score(pred_mask, gt_mask):
 def draw_history(history):
     
     plt.figure()
-    plt.plot(torch.tensor(history["train_acc"]), label = 'train acc')
-    plt.plot(torch.tensor(history["val_acc"]), label = 'val acc')
+    plt.plot(torch.tensor(history["train_dice_score"]), label = 'train dice score')
+    plt.plot(torch.tensor(history["val_dice_score"]), label = 'val dice score')
     plt.plot(torch.tensor(history["train_loss"]), label = 'train loss')
     plt.plot(torch.tensor(history["val_loss"]), label = 'val loss')
     plt.xlabel('Epoch')
     plt.legend()
 
-    plt.savefig('acc_loss_history.png')
+    plt.savefig('dicescore_loss_history.png')
     plt.show()
 
 

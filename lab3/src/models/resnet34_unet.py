@@ -30,12 +30,12 @@ class DoubleConv(nn.Module):
         super(DoubleConv, self).__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size= (3, 3), padding= (1, 1), bias= False),
+            nn.Conv2d(in_channels, out_channels, kernel_size= 3, padding= 1, bias= False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size= (3, 3), padding= (1, 1), bias= False),
+            nn.ReLU(inplace= True),
+            nn.Conv2d(out_channels, out_channels, kernel_size= 3, padding= 1, bias= False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
+            nn.ReLU(inplace= True),
         )
 
     def forward(self, x):
@@ -44,20 +44,10 @@ class DoubleConv(nn.Module):
 class UpSampling(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UpSampling, self).__init__()
-
-        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2, bias= False)
+        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2)
 
     def forward(self, x):
         return self.de_conv(x)
-
-def concat(x, cropped_x):
-
-    diff_x = cropped_x.shape[2] - x.shape[2]
-    diff_y = cropped_x.shape[3] - x.shape[3]
-    # padding input shape with dim1 of (diff_x // 2, diff_x - diff_x // 2) and dim2 of (diff_y // 2, diff_y - diff_y // 2) 
-    x = F.pad(x, [diff_x // 2, diff_x - diff_x // 2, diff_y // 2, diff_y - diff_y // 2])
-    # concat cropped_x and x
-    return torch.cat([cropped_x, x], dim= 1)
 
 
 class ResNet34_UNet(nn.Module):
@@ -116,7 +106,8 @@ class ResNet34_UNet(nn.Module):
         self.unet_double_conv4 = DoubleConv(64 + 64, 64)
         self.unet_up_conv5 = UpSampling(64, 32)
         self.output = nn.Sequential(
-            nn.Conv2d(32, num_classes, kernel_size= (1, 1))
+            nn.Conv2d(32, num_classes, kernel_size= 1), 
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -129,16 +120,18 @@ class ResNet34_UNet(nn.Module):
         e5 = self.resnet34_conv5(e4)
         
         # decoder
-        d1 = concat(self.unet_up_conv1(e5), e4)
+        
+        d1 = torch.cat([self.unet_up_conv1(e5), e4], dim= 1)
         x = self.unet_double_conv1(d1)
 
-        d2 = concat(self.unet_up_conv2(x), e3)
+        
+        d2 = torch.cat([self.unet_up_conv2(x), e3], dim= 1)
         x = self.unet_double_conv2(d2)
-
-        d3 = concat(self.unet_up_conv3(x), e2)
+        
+        d3 = torch.cat([self.unet_up_conv3(x), e2], dim= 1)
         x = self.unet_double_conv3(d3)
-
-        d4 = concat(self.unet_up_conv4(x), e1)
+        
+        d4 = torch.cat([self.unet_up_conv4(x), e1], dim= 1)
         x = self.unet_double_conv4(d4)
 
         d5 = self.unet_up_conv5(x)
