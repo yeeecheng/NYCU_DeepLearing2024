@@ -8,7 +8,8 @@ def dice_score(pred_mask, gt_mask):
     
     # Avoid a denominator of 0
     smooth = 1e-6
-    return ((2 * (pred_mask * gt_mask).sum() + smooth) / (pred_mask.sum() + gt_mask.sum() + smooth)).float().mean()
+    intersection = (pred_mask * gt_mask).sum()
+    return (2 * intersection + smooth) / (pred_mask.sum() + gt_mask.sum() + smooth)
 
 
 # draw accuracy and loss during the training and testing 
@@ -27,17 +28,15 @@ def draw_history(history):
 
 
 def show_img(org_img, img):
-    plt.imshow(org_img)
-    plt.show()
-    # 繪製貓和狗的分割結果
+
     plt.figure(figsize=(10, 5))
 
     plt.subplot(1, 2, 1)
-    plt.imshow(img[0])
-    plt.title('Cat')
+    plt.imshow(org_img)
+    plt.title('org mask')
 
     plt.subplot(1, 2, 2)
-    plt.imshow(img[1])
-    plt.title('Dog')
+    plt.imshow(img)
+    plt.title('pred mask')
 
     plt.show()

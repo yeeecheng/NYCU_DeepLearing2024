@@ -15,9 +15,10 @@ def train(args):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     train_transforms = transforms.Compose([
-        transforms.ColorJitter(brightness=0.4),
+        # transforms.ColorJitter(brightness=0.4),
         transforms.ElasticTransform(alpha=float(250), sigma=float(10)),
         transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(15)
     ])
 
     train_dataset = SimpleOxfordPetDataset(args.data_path, mode= "train", transform= train_transforms)
@@ -34,13 +35,13 @@ def train(args):
     val_dataloader = DataLoader(val_dataset, BATCH_SIZE, shuffle= False)    
 
     if NET == "UNet":
-        model = UNet(3, 2).to(device)
-        criterion = nn.CrossEntropyLoss()
+        model = UNet(3, 1).to(device)
+        criterion = nn.BCELoss()
         optimizer = torch.optim.SGD(model.parameters(), lr= LR, momentum= 0.99)
     
     elif NET == "ResNet34_UNet":
-        model = ResNet34_UNet(3, 2).to(device)
-        criterion = nn.CrossEntropyLoss()
+        model = ResNet34_UNet(3, 1).to(device)
+        criterion = nn.BCELoss()
         # lr of 1e-3, batch size of 6
         optimizer = torch.optim.SGD(model.parameters(), lr= LR)
 
@@ -67,12 +68,11 @@ def train(args):
 
             imgs, masks = batch["image"], batch["mask"]
             optimizer.zero_grad()
-            # batch, channel (num_classes), W, H
+            # batch, 1, W, H -> batch, W, H
+            masks_pred = model(imgs.to(device)).squeeze(1)
 
-            masks_pred = model(imgs.to(device))
-
-            acc = dice_score(torch.argmax(masks_pred, dim=1),masks.to(device))
-            loss = criterion(masks_pred, masks.to(device)) + (1 - acc)
+            acc = dice_score(masks_pred, masks.to(device).float())
+            loss = criterion(masks_pred, masks.to(device).float()) + (1 - acc)
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             loss.backward()

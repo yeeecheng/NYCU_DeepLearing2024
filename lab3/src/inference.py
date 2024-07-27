@@ -21,16 +21,16 @@ def inference(args):
     test_dataloader = DataLoader(test_dataset, BATCH_SIZE, shuffle= False)
 
     if NET == "UNet":
-        model = UNet(3, 2).to(device)
-        model.load_state_dict(torch.load(PRE_TRAIN_MODEL))
-
-        criterion = nn.CrossEntropyLoss()
+        model = UNet(3, 1).to(device)
 
     elif NET == "ResNet34_UNet":
-        model = ResNet34_UNet(3, 2).to(device)
-        model.load_state_dict(torch.load(PRE_TRAIN_MODEL))
-        criterion = nn.CrossEntropyLoss()
+        model = ResNet34_UNet(3, 1).to(device)
     
+    criterion = nn.BCELoss()
+    if PRE_TRAIN_MODEL is not None:
+        checkpoint = torch.load(PRE_TRAIN_MODEL)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
     model.eval()
 
     batch_test_loss = []
@@ -40,12 +40,12 @@ def inference(args):
         for batch in tqdm(test_dataloader):
 
             imgs, masks = batch["image"], batch["mask"]
-            masks_pred = model(imgs.to(device))
-            loss = criterion(masks_pred, masks.to(device))
+            masks_pred = model(imgs.to(device)).squeeze(1)
+            acc = dice_score(masks_pred, masks.to(device).float())
+            loss = criterion(masks_pred, masks.to(device).float()) + (1 - acc)
 
-            # for i in range(len(masks)):
-            #     show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 0, 1))
-            acc = dice_score(torch.argmax(masks_pred, dim= 1), masks.to(device))
+            for i in range(len(masks)):
+                show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0))
             
             batch_test_acc.append(acc)
             batch_test_loss.append(loss.item())

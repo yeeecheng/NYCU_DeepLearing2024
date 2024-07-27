@@ -8,12 +8,12 @@ class DoubleConv(nn.Module):
         super(DoubleConv, self).__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size= (3, 3), padding= (1, 1), bias= False),
+            nn.Conv2d(in_channels, out_channels, kernel_size= 3, padding= 1, bias= False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size= (3, 3), padding= (1, 1), bias= False),
+            nn.ReLU(inplace= True),
+            nn.Conv2d(out_channels, out_channels, kernel_size= 3, padding= 1, bias= False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
+            nn.ReLU(inplace= True),
         )
 
     def forward(self, x):
@@ -24,7 +24,7 @@ class DownSampling(nn.Module):
         super(DownSampling, self).__init__()
 
         self.down_sampling = nn.Sequential(
-            nn.MaxPool2d(kernel_size= (2, 2), stride= (2, 2)),
+            nn.MaxPool2d(kernel_size= 2, stride= 2),
             DoubleConv(in_channels, out_channels)
         )
 
@@ -35,17 +35,11 @@ class UpSampling(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(UpSampling, self).__init__()
 
-        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2, bias= False)
+        self.de_conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size= 2, stride= 2)
         self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x, cropped_x):
         x = self.de_conv(x)
-        # calculate the difference between x (expansive path) and cropped_x (contracting_path)
-        diff_x = cropped_x.shape[2] - x.shape[2]
-        diff_y = cropped_x.shape[3] - x.shape[3]
-        # padding input shape with dim1 of (diff_x // 2, diff_x - diff_x // 2) and dim2 of (diff_y // 2, diff_y - diff_y // 2) 
-        x = F.pad(x, [diff_x // 2, diff_x - diff_x // 2, diff_y // 2, diff_y - diff_y // 2])
-        # concat cropped_x and x
         x = torch.cat([cropped_x, x], dim= 1)
         return self.conv(x)
 
@@ -66,7 +60,8 @@ class UNet(nn.Module):
         self.expansive3 = UpSampling(256, 128)
         self.expansive4 = UpSampling(128, 64)
         self.output = nn.Sequential(
-            nn.Conv2d(64, num_classes, kernel_size= (1, 1))
+            nn.Conv2d(64, num_classes, kernel_size= 1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):

@@ -38,6 +38,7 @@ class OxfordPetDataset(torch.utils.data.Dataset):
         sample = dict(image=image, mask=mask, trimap=trimap)
         if self.transform is not None:
             sample["image"] = np.array(self.transform(Image.fromarray(sample["image"])))
+            sample["mask"] = np.array(self.transform(Image.fromarray(sample["mask"])))
 
         return sample
 
