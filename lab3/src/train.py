@@ -45,8 +45,6 @@ def train(args):
         history = checkpoint['history']
         best_dice_score = checkpoint['best_score']
     
-    EPOCHS += prev_epochs
-    
 
     
     for epoch in range(prev_epochs + 1, EPOCHS + 1):
