@@ -39,13 +39,14 @@ def inference(args):
 
         for batch in tqdm(test_dataloader):
 
-            imgs, masks = batch["image"], batch["mask"]
+            imgs, masks = batch["image"].to(device), batch["mask"].to(device)
             masks_pred = model(imgs.to(device)).squeeze(1)
-            dice_score = cal_dice_score(masks_pred, masks.to(device).float())
-            loss = criterion(masks_pred, masks.to(device).float()) + (1 - dice_score)
 
-            for i in range(len(masks)):
-                show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0))
+            loss = criterion(masks_pred, masks.float()) + dice_loss(masks_pred, masks.float())
+            dice_score = cal_dice_score(masks_pred, masks.float())
+
+            # for i in range(len(masks)):
+            #     show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0))
             
             batch_test_dice_score.append(dice_score)
             batch_test_loss.append(loss.item())

@@ -56,15 +56,16 @@ def train(args):
 
             imgs, masks = batch["image"].to(device), batch["mask"].to(device)
             # batch, 1, W, H -> batch, W, H
-            masks_pred = model(imgs).squeeze(1)
 
-            dice_score = cal_dice_score(masks_pred, masks.float())
-            loss = criterion(masks_pred, masks.float()) + (1 - dice_score)
+            masks_pred = model(imgs).squeeze(1)
+            loss = criterion(masks_pred, masks.float()) + dice_loss(masks_pred, masks.float())
             
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
+            dice_score = cal_dice_score(masks_pred, masks.float())
 
 
             batch_train_dice_score.append(dice_score)
