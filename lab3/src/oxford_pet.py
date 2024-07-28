@@ -136,7 +136,8 @@ def load_dataset(data_path, mode):
             A.Resize(256, 256),
             A.HorizontalFlip(),
             A.RandomResizedCrop(256, 256), 
-            A.Rotate(15),
+            A.ShiftScaleRotate(shift_limit= 0.2 , scale_limit= 0.2 , rotate_limit= 30) ,
+            A.ColorJitter(hue= 0) ,
             A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ],
     )

@@ -8,8 +8,17 @@ def cal_dice_score(pred_mask, gt_mask):
     
     # Avoid a denominator of 0
     smooth = 1e-6
+    pred_mask[pred_mask > 0.5] = torch.tensor(1.0)
+    pred_mask[pred_mask <= 0.5] = torch.tensor(0.0)
     intersection = (pred_mask * gt_mask).sum()
     return (2 * intersection + smooth) / (pred_mask.sum() + gt_mask.sum() + smooth)
+
+
+def dice_loss(pred_mask, gt_mask):
+
+    smooth = 1e-6
+    intersection = (pred_mask * gt_mask).sum() + smooth
+    return 1 - (2 * intersection) / (pred_mask.sum() + gt_mask.sum() + smooth)
 
 
 # draw accuracy and loss during the training and testing 
