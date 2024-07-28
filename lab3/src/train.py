@@ -34,16 +34,19 @@ def train(args):
     optimizer = torch.optim.Adam(model.parameters(), lr= LR)
 
     prev_epochs = 0
+    history = {"train_loss": [], "train_dice_score": [], "val_loss": [], "val_dice_score": []}
+    best_dice_score = 0
+    
     if PRE_TRAIN_MODEL is not None:
         checkpoint = torch.load(PRE_TRAIN_MODEL)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         prev_epochs = checkpoint['epoch']
+        history = checkpoint['history']
+        best_dice_score = checkpoint['best_score']
     
     EPOCHS += prev_epochs
     
-    best_dice_score = 0
-    history = {"train_loss": [], "train_dice_score": [], "val_loss": [], "val_dice_score": []}
 
     
     for epoch in range(prev_epochs + 1, EPOCHS + 1):
@@ -85,11 +88,13 @@ def train(args):
 
         if val_dice_score > best_dice_score:
             print(f"Best model found at epoch {epoch}, saving model")
+            best_dice_score = val_dice_score
             torch.save({'model_state_dict': model.state_dict(), 
                         'epoch': epoch, 
+                        'history': history,
+                        'best_score': best_dice_score,
                         'optimizer_state_dict': optimizer.state_dict()}, "./best.pth")
-            best_dice_score = val_dice_score
-        if epoch % 20 == 0:
+        if epoch % 5 == 0:
             draw_history(history)
     # draw model history 
     draw_history(history, True)
