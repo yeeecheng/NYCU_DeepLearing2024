@@ -22,7 +22,7 @@ def dice_loss(pred_mask, gt_mask):
 
 
 # draw accuracy and loss during the training and testing 
-def draw_history(history):
+def draw_history(history, show= False):
     
     plt.figure()
     plt.plot(torch.tensor(history["train_dice_score"]), label = 'train dice score')
@@ -33,7 +33,8 @@ def draw_history(history):
     plt.legend()
 
     plt.savefig('dicescore_loss_history.png')
-    plt.show()
+    if show:
+        plt.show()
 
 
 def show_img(org_img, img):

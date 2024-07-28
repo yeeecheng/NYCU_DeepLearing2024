@@ -89,9 +89,9 @@ def train(args):
                         'epoch': epoch, 
                         'optimizer_state_dict': optimizer.state_dict()}, "./best.pth")
             best_dice_score = val_dice_score
-
+        draw_history(history)
     # draw model history 
-    draw_history(history)
+    draw_history(history, True)
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
