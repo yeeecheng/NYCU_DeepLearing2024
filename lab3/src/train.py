@@ -67,7 +67,6 @@ def train(args):
             
             dice_score = cal_dice_score(masks_pred, masks.float())
 
-
             batch_train_dice_score.append(dice_score)
             batch_train_loss.append(loss.item())
 
@@ -90,7 +89,8 @@ def train(args):
                         'epoch': epoch, 
                         'optimizer_state_dict': optimizer.state_dict()}, "./best.pth")
             best_dice_score = val_dice_score
-        draw_history(history)
+        if epoch % 20 == 0:
+            draw_history(history)
     # draw model history 
     draw_history(history, True)
 
