@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
-
+import cv2
 
 def cal_dice_score(pred_mask, gt_mask):
     # 2 * (common pixel of pred_mask and gt_mask) / (pred_mask's 1 + gt_mask's 1)
@@ -37,7 +37,7 @@ def draw_history(history, show= False):
         plt.show()
 
 
-def show_img(org_img, img):
+def compare_mask(org_img, img, idx):
 
     plt.figure(figsize=(10, 5))
 
@@ -49,4 +49,6 @@ def show_img(org_img, img):
     plt.imshow(img)
     plt.title('pred mask')
 
-    plt.show()
+    # plt.show()
+
+    plt.savefig(f'pred_mask{idx}.png')

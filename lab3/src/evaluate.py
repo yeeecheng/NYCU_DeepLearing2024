@@ -5,7 +5,6 @@ from utils import *
 
 def evaluate(net, val_dataloader, device):
     
-
     criterion = nn.BCELoss()
     batch_val_loss = []
     batch_val_dice_score = []

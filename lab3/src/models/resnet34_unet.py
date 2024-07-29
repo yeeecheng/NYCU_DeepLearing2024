@@ -2,9 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-#https://meetonfriday.com/posts/fb19d450/
-#https://pytorch.org/vision/main/_modules/torchvision/models/resnet.html#resnet34
-#https://github.com/zhoudaxia233/PyTorch-Unet/blob/master/resnet_unet.py
 class Residual_Block(nn.Module):
     def __init__(self, in_channels, out_channels, stride= 1, shortcut= None):
         super(Residual_Block, self).__init__()
@@ -120,10 +117,8 @@ class ResNet34_UNet(nn.Module):
         e5 = self.resnet34_conv5(e4)
         
         # decoder
-        
         d1 = torch.cat([self.unet_up_conv1(e5), e4], dim= 1)
         x = self.unet_double_conv1(d1)
-
         
         d2 = torch.cat([self.unet_up_conv2(x), e3], dim= 1)
         x = self.unet_double_conv2(d2)

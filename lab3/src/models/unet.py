@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DoubleConv, self).__init__()
@@ -48,7 +47,6 @@ class UNet(nn.Module):
     def __init__(self, num_channels, num_classes):
         super(UNet, self).__init__()
         
-
         self.contracting1 = DoubleConv(num_channels, 64)
         self.contracting2 = DownSampling(64, 128)
         self.contracting3 = DownSampling(128, 256)
@@ -75,5 +73,5 @@ class UNet(nn.Module):
         x = self.expansive2(x, c3)
         x = self.expansive3(x, c2)
         x = self.expansive4(x, c1)
-        
+
         return self.output(x)

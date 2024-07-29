@@ -45,17 +45,17 @@ def inference(args):
             loss = criterion(masks_pred, masks.float()) + dice_loss(masks_pred, masks.float())
             dice_score = cal_dice_score(masks_pred, masks.float())
 
+            # Show image
             # for i in range(len(masks)):
-            #     show_img(masks[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0))
+            #     compare_mask(masks.cpu().detach().numpy()[i], np.where( masks_pred.cpu().detach().numpy()[i] > 0.5, 1, 0), len(batch_test_loss) * BATCH_SIZE + i )
             
+
             batch_test_dice_score.append(dice_score)
             batch_test_loss.append(loss.item())
         test_dice_score = sum(batch_test_dice_score) / len(batch_test_dice_score)
         test_loss = sum(batch_test_loss) / len(batch_test_loss)
         
         print(f"[ Test ] loss = {test_loss:.5f}, acc = {test_dice_score:.5f}")
-
-
 
 
 def get_args():
