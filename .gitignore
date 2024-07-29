@@ -3,5 +3,6 @@
 */*/__pycache__
 */*/*/__pycache__
 /lab2/dataset
+*/*/*.pth
 */*/*.ckpt
 /lab3/dataset
