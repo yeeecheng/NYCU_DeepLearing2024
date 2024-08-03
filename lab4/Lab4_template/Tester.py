@@ -12,7 +12,7 @@ from torch import stack
 
 import imageio
 from math import log10
-from Trainer import VAE_Model
+from Trainer import VAE_Model, kl_criterion, Generate_PSNR
 import glob
 import pandas as pd
 
@@ -115,6 +115,10 @@ class Test_model(VAE_Model):
             
     
     def val_one_step(self, img, label, idx=0):
+        
+        sequence_mse_loss , sequence_kl_loss= list(), list()
+        sequence_PSNR = list()
+        
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         assert label.shape[0] == 630, "Testing pose seqence should be 630"
@@ -127,16 +131,32 @@ class Test_model(VAE_Model):
         label_list = []
 
         cur_frame = img[0]
-        for i in range(self.val_vi_len - 1):
+        for t in range(self.val_vi_len - 1):
             trans_cur_frame = self.frame_transformation(cur_frame)
-            trans_next_label = self.label_transformation(label[i + 1])
-            z = np.random.normal(size=(1, self.args.N_dim, self.args.frame_H, self.args.frame_W))
-            input = self.Decoder_Fusion(trans_cur_frame, trans_next_label, torch.tensor(z).to(self.args.device, dtype= torch.float))
+            trans_next_label = self.label_transformation(label[t + 1])
+            
+            # cal KL loss, not use
+            trans_next_img = self.frame_transformation(img[t + 1])
+            z, mu, logvar = self.Gaussian_Predictor(trans_next_img, trans_next_label)
+            sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
+            
+            # Actually used
+            z = torch.randn_like(z)
+            input = self.Decoder_Fusion(trans_cur_frame, trans_next_label, z)
             out_next_frame = self.Generator(input)
             cur_frame = out_next_frame
 
             decoded_frame_list.append(out_next_frame.cpu())
+
+            sequence_mse_loss.append(self.mse_criterion(img[t + 1], out_next_frame))
+            sequence_PSNR.append(Generate_PSNR(img[t + 1], out_next_frame))
         
+        mse_loss = sum(sequence_mse_loss) / len(sequence_mse_loss)
+        kl_loss = sum(sequence_kl_loss) / len(sequence_kl_loss)
+        beta = self.kl_annealing.get_beta()
+        loss = mse_loss + beta * kl_loss
+        print(f"loss:{loss}, PSNR:{sum(sequence_PSNR) / len(sequence_PSNR)}")
+
         # Please do not modify this part, it is used for visulization
         generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         # label_frame = stack(label_list).permute(1, 0, 2, 3, 4)

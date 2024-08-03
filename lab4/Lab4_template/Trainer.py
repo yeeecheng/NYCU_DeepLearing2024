@@ -110,6 +110,8 @@ class VAE_Model(nn.Module):
         self.val_vi_len   = args.val_vi_len
         self.batch_size = args.batch_size
         
+        # for check kl annealing
+        self.beta_list = list()
         
     def forward(self, img, label):
         pass
@@ -119,6 +121,7 @@ class VAE_Model(nn.Module):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
             
+            self.beta_list.append(self.kl_annealing.get_beta())
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
                 img = img.to(self.args.device)
@@ -139,7 +142,7 @@ class VAE_Model(nn.Module):
             self.scheduler.step()
             self.teacher_forcing_ratio_update()
             self.kl_annealing.update()
-            
+        self.draw_beta_curve()
             
     @torch.no_grad()
     def eval(self):
@@ -199,7 +202,7 @@ class VAE_Model(nn.Module):
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
 
         cur_img = img[0]
-        for t in range(self.train_vi_len - 1):
+        for t in range(self.val_vi_len - 1):
             trans_cur_img = self.frame_transformation(cur_img)
             trans_next_label = self.label_transformation(label[t + 1])
             
@@ -209,8 +212,8 @@ class VAE_Model(nn.Module):
             sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
             
             # Actually used
-            z = np.random.normal(size=(1, self.args.N_dim, self.args.frame_H, self.args.frame_W))
-            input = self.Decoder_Fusion(trans_cur_img, trans_next_label, torch.tensor(z).to(self.args.device, dtype= torch.float))
+            z = torch.randn_like(z)
+            input = self.Decoder_Fusion(trans_cur_img, trans_next_label, z)
             out_next_img = self.Generator(input)
             cur_img = out_next_img
             
@@ -250,7 +253,7 @@ class VAE_Model(nn.Module):
                                   batch_size=self.batch_size,
                                   num_workers=self.args.num_workers,
                                   drop_last=True,
-                                  shuffle=False)  
+                                  shuffle=True)  
         return train_loader
     
     def val_dataloader(self):
@@ -304,6 +307,23 @@ class VAE_Model(nn.Module):
         self.optim.step()
 
 
+    def draw_beta_curve(self):
+        import matplotlib.pyplot as plt
+
+        epochs = list(range(1, self.args.num_epoch + 1))
+        beta_values = self.beta_list
+        
+        plt.figure(figsize=(10, 6))
+        plt.plot(epochs, beta_values, marker='o', linestyle='-', color='b', label='Beta Value')
+
+        plt.title('Beta Value over Epochs')
+        plt.xlabel('Epochs')
+        plt.ylabel('Beta')
+        plt.legend()
+
+        plt.grid(True)
+        plt.savefig(f'./beta.png')
+
 
 def main(args):
     
@@ -331,10 +351,10 @@ if __name__ == '__main__':
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
     parser.add_argument('--num_epoch',     type=int, default=70,     help="number of total epoch")
-    parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
+    parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every set epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
-    parser.add_argument('--val_vi_len',    type=int, default=630,    help="valdation video length")
+    parser.add_argument('--val_vi_len',    type=int, default=630,    help="validation video length")
     parser.add_argument('--frame_H',       type=int, default=32,     help="Height input image to be resize")
     parser.add_argument('--frame_W',       type=int, default=64,     help="Width input image to be resize")
     
@@ -356,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--fast_partial',       type=float, default=0.4,    help="Use part of the training data to fasten the convergence")
     parser.add_argument('--fast_train_epoch',   type=int, default=5,        help="Number of epoch to use fast train mode")
     
-    # Kl annealing stratedy arguments
+    # Kl annealing strategy arguments
     parser.add_argument('--kl_anneal_type',     type=str, default='Cyclical',       help="")
     parser.add_argument('--kl_anneal_cycle',    type=int, default=10,               help="")
     parser.add_argument('--kl_anneal_ratio',    type=float, default=1,              help="")

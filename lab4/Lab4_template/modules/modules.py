@@ -77,9 +77,16 @@ class Gaussian_Predictor(nn.Sequential):
         
     def reparameterize(self, mu, logvar):
         # https://bobondemon.github.io/2018/09/18/Variational-Inference-Notes/
-        # sample from Normal distribution (0, I)
-        epsilon = np.random.normal()
-        return  logvar * epsilon + mu
+        # https://blog.csdn.net/Lizhi_Tech/article/details/132148398
+        """
+        std = sqrt(var), therefore, sqrt(var) is stable for training 
+        std = sqrt(exp(log(var)))
+        std = exp(0.5 * log(var))
+        """
+        std = torch.exp(0.5 * logvar)
+        # sample from Normal distribution (0, I) which shape is same with std
+        epsilon = torch.randn_like(std)
+        return  epsilon * logvar  + mu
 
 
     def forward(self, img, label):
