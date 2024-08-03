@@ -123,13 +123,13 @@ class VAE_Model(nn.Module):
                 
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
-                loss = self.training_one_step(img, label, adapt_TeacherForcing)
+                loss, PSNR = self.training_one_step(img, label, adapt_TeacherForcing)
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
             
             if self.current_epoch % self.args.per_save == 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
@@ -147,50 +147,85 @@ class VAE_Model(nn.Module):
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
-            loss = self.val_one_step(img, label)
-            self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+            loss, PSNR = self.val_one_step(img, label)
+            self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
-        sequence_loss = list()
-        cur_img = img[:, 0 : 1, : , :, :].squeeze(1)
+        sequence_mse_loss , sequence_kl_loss= list(), list()
+        sequence_PSNR = list()
+
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         
+        cur_img = img[0]
         for t in range(self.train_vi_len - 1):
             trans_cur_img = self.frame_transformation(cur_img)
-            trans_next_label = self.label_transformation(label[:, t + 1 : t + 2, : , :, :].squeeze(1))
-            trans_next_img = self.frame_transformation(img[:, t + 1 : t + 2, : , :, :].squeeze(1))
-            z, _, _ = self.Gaussian_Predictor(trans_next_img, trans_next_label)
+            trans_next_label = self.label_transformation(label[t + 1])
+            trans_next_img = self.frame_transformation(img[t + 1])
+            z, mu, logvar = self.Gaussian_Predictor(trans_next_img, trans_next_label)
+            sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
+
             input = self.Decoder_Fusion(trans_cur_img, trans_next_label, z)
             out_next_img = self.Generator(input)
             cur_img = out_next_img
 
-            sequence_loss.append(self.mse_criterion(img[:, t + 1 : t + 2, : , :, :].squeeze(1), out_next_img))
-            
-            if adapt_TeacherForcing:
-                cur_img = img[:, t + 1 : t + 2, : , :, :].squeeze(1)
+            sequence_mse_loss.append(self.mse_criterion(img[t + 1], out_next_img))
+            sequence_PSNR.append(Generate_PSNR(img[t + 1], out_next_img))
 
-        loss = sum(sequence_loss) / len(sequence_loss)
+            if adapt_TeacherForcing:
+                cur_img = img[t + 1]
+
+        mse_loss = sum(sequence_mse_loss) / len(sequence_mse_loss)
+        kl_loss = sum(sequence_kl_loss) / len(sequence_kl_loss)
+        beta = self.kl_annealing.get_beta()
+        loss = mse_loss + beta * kl_loss
         self.optim.zero_grad()
         loss.backward()
         self.optimizer_step()
 
-        return loss
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
+
+        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
 
 
     def val_one_step(self, img, label):
-        sequence_loss = list()
-        cur_img = img[:, 0 : 1, : , :, :].squeeze(1)
+
+        sequence_mse_loss , sequence_kl_loss= list(), list()
+        sequence_PSNR = list()
+        
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+
+        cur_img = img[0]
         for t in range(self.train_vi_len - 1):
             trans_cur_img = self.frame_transformation(cur_img)
-            trans_next_label = self.label_transformation(label[:, t + 1 : t + 2, : , :, :].squeeze(1))
+            trans_next_label = self.label_transformation(label[t + 1])
+            
+            # cal KL loss, not use
+            trans_next_img = self.frame_transformation(img[t + 1])
+            z, mu, logvar = self.Gaussian_Predictor(trans_next_img, trans_next_label)
+            sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
+            
+            # Actually used
             z = np.random.normal(size=(1, self.args.N_dim, self.args.frame_H, self.args.frame_W))
             input = self.Decoder_Fusion(trans_cur_img, trans_next_label, torch.tensor(z).to(self.args.device, dtype= torch.float))
             out_next_img = self.Generator(input)
             cur_img = out_next_img
+            
+            sequence_mse_loss.append(self.mse_criterion(img[t + 1], out_next_img))
+            sequence_PSNR.append(Generate_PSNR(img[t + 1], out_next_img))
 
-            sequence_loss.append(self.mse_criterion(img[:, t + 1 : t + 2, : , :, :].squeeze(1), out_next_img))
+        mse_loss = sum(sequence_mse_loss) / len(sequence_mse_loss)
+        kl_loss = sum(sequence_kl_loss) / len(sequence_kl_loss)
+        beta = self.kl_annealing.get_beta()
+        loss = mse_loss + beta * kl_loss
+
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
         
-        return sum(sequence_loss) / len(sequence_loss)
+        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -232,13 +267,13 @@ class VAE_Model(nn.Module):
         return val_loader
     
     def teacher_forcing_ratio_update(self):
-        if self.current_epoch >= self.tfr_d_step:
-            self.tfr *= self.tfr_sde
+        if self.current_epoch >= self.tfr_sde:
+            self.tfr *= self.tfr_d_step
             
             
             
-    def tqdm_bar(self, mode, pbar, loss, lr):
-        pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}" , refresh=False)
+    def tqdm_bar(self, mode, pbar, loss, lr, PSNR):
+        pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}, PSNR:{PSNR}" , refresh=False)
         pbar.set_postfix(loss=float(loss), refresh=False)
         pbar.refresh()
         
