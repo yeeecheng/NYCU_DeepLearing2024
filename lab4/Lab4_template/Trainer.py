@@ -253,7 +253,7 @@ class VAE_Model(nn.Module):
                                   batch_size=self.batch_size,
                                   num_workers=self.args.num_workers,
                                   drop_last=True,
-                                  shuffle=True)  
+                                  shuffle=False)  
         return train_loader
     
     def val_dataloader(self):
