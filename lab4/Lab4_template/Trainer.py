@@ -96,6 +96,8 @@ class VAE_Model(nn.Module):
         self.Generator            = Generator(input_nc=args.D_out_dim, output_nc=3)
         
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
+        if self.args.optim == "AdamW":
+            self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
         self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
@@ -130,9 +132,9 @@ class VAE_Model(nn.Module):
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
             
             if self.current_epoch % self.args.per_save == 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
@@ -253,7 +255,7 @@ class VAE_Model(nn.Module):
                                   batch_size=self.batch_size,
                                   num_workers=self.args.num_workers,
                                   drop_last=True,
-                                  shuffle=False)  
+                                  shuffle=True)  
         return train_loader
     
     def val_dataloader(self):
@@ -323,6 +325,23 @@ class VAE_Model(nn.Module):
 
         plt.grid(True)
         plt.savefig(f'./beta.png')
+
+    def draw_PSNR_curve(self, sequence_PSNR):
+        import matplotlib.pyplot as plt
+
+        epochs = list(range(1, len(sequence_PSNR)))
+        PSNR_values = sequence_PSNR
+        
+        plt.figure(figsize=(10, 6))
+        plt.plot(epochs, PSNR_values, marker='o', linestyle='-', color='b', label='PSNR Value')
+
+        plt.title('PSNR Value over Epochs')
+        plt.xlabel('Epochs')
+        plt.ylabel('PSNR')
+        plt.legend()
+
+        plt.grid(True)
+        plt.savefig(f'./PSNR.png')
 
 
 def main(args):
