@@ -101,7 +101,7 @@ class VAE_Model(nn.Module):
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
         if self.args.optim == "AdamW":
             self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[20, 50], gamma=0.5)
+        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.5)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
@@ -221,7 +221,7 @@ class VAE_Model(nn.Module):
         beta = self.kl_annealing.get_beta()
         loss = mse_loss + beta * kl_loss
         
-        return loss / (self.train_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss / (self.val_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
