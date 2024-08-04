@@ -42,11 +42,11 @@ class kl_annealing():
         self.current_epoch = current_epoch
 
         if args.kl_anneal_type == "Cyclical":
-            self.L = self.frange_cycle_linear(n_iter= args.num_epoch, 
+            self.L = self.frange_cycle_linear(n_epoch= args.num_epoch, 
                                                 n_cycle= args.kl_anneal_cycle, 
-                                                ratio= self.kl_anneal_ratio)
+                                                ratio= args.kl_anneal_ratio)
         elif args.kl_anneal_type == "Monotonic":
-            self.L = self.frange_cycle_linear(n_iter= args.num_epoch, 
+            self.L = self.frange_cycle_linear(n_epoch= args.num_epoch, 
                                                 n_cycle= 1, 
                                                 ratio= args.kl_anneal_ratio)
         elif args.kl_anneal_type == "constant":
@@ -67,7 +67,7 @@ class kl_annealing():
         """
         # https://github.com/haofuml/cyclical_annealing/blob/master/plot/plot_schedules.ipynb
         L = np.ones(n_epoch)
-        period = np.ceil(self.total_n_iter / n_cycle)
+        period = np.ceil(n_epoch / n_cycle)
         # y / x, x is total period * ratio, step is slope
         step = (stop - start) / (period * ratio)
 
