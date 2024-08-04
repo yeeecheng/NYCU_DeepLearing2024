@@ -120,7 +120,7 @@ class Test_model(VAE_Model):
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         assert label.shape[0] == 630, "Testing pose seqence should be 630"
         assert img.shape[0] == 1, "Testing video seqence should be 1"
-        
+        # denormalize = transforms.Normalize(mean=(-0.485/0.229, -0.456/0.224, -0.406/0.225), std=(1/0.229, 1/0.224, 1/0.225))
         # decoded_frame_list is used to store the predicted frame seq
         # label_list is used to store the label seq
         # Both list will be used to make gif
@@ -137,6 +137,7 @@ class Test_model(VAE_Model):
             out_next_frame = self.Generator(input)
             cur_frame = out_next_frame
 
+            # decoded_frame_list.append(denormalize(out_next_frame).cpu())
             decoded_frame_list.append(out_next_frame.cpu())
 
         # Please do not modify this part, it is used for visulization

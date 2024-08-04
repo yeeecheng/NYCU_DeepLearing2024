@@ -86,7 +86,7 @@ class Gaussian_Predictor(nn.Sequential):
         std = torch.exp(0.5 * logvar)
         # sample from Normal distribution (0, I) which shape is same with std
         epsilon = torch.randn_like(std)
-        return  epsilon * logvar  + mu
+        return  epsilon * std  + mu
 
 
     def forward(self, img, label):

@@ -7,6 +7,7 @@ from torch.utils.data import Dataset as torchData
 
 from torchvision.datasets.folder import default_loader as imgloader
 from torch import stack
+from torchvision import transforms
 def get_key(fp):
     fp = fp.replace("\\", "/")
     filename = fp.split('/')[-1]
@@ -34,7 +35,13 @@ class Dataset_Dance(torchData):
             raise NotImplementedError
         
         self.img_folder = [path.replace('\\', '/') for path in self.img_folder]
-        self.transform = transform
+        
+        self.img_transform = transform
+        # transform_list = list(self.img_transform.transforms)
+        # transform_list.append(transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
+        # self.img_transform = transforms.Compose(transform_list)
+
+        self.label_transform = transform
         self.partial = partial
         self.video_len = video_len
 
@@ -53,8 +60,8 @@ class Dataset_Dance(torchData):
             img_name    = self.img_folder[(index*self.video_len)+i]
             label_name = '/'.join(label_list)
 
-            imgs.append(self.transform(imgloader(img_name)))
-            labels.append(self.transform(imgloader(label_name)))
+            imgs.append(self.img_transform(imgloader(img_name)))
+            labels.append(self.label_transform(imgloader(label_name)))
         return stack(imgs), stack(labels)
     
     
