@@ -131,6 +131,7 @@ class Test_model(VAE_Model):
             trans_cur_frame = self.frame_transformation(cur_frame)
             trans_next_label = self.label_transformation(label[t + 1])
             # Actually used
+            # z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             input = self.Decoder_Fusion(trans_cur_frame, trans_next_label, z)
             out_next_frame = self.Generator(input)

@@ -35,47 +35,50 @@ def kl_criterion(mu, logvar, batch_size):
 
 class kl_annealing():
     def __init__(self, args, current_epoch=0):
+        # kl_anneal_cycle: number of cycle during the whole training process (M)
+        # kl_anneal_ratio: proportion used to increase beta within a cycle (R)
+        # beta: beta control the strength of regularization
         
-        self.kl_anneal_type = args.kl_anneal_type
-        # number of cycle during the whole training process (M)
-        self.kl_anneal_cycle = args.kl_anneal_cycle
-        # proportion used to increase beta within a cycle (R)
-        self.kl_anneal_ratio = args.kl_anneal_ratio
-        # beta control the strength of regularization
-        self.beta = 0
-        
-        self.total_n_iter = args.num_epoch
         self.current_epoch = current_epoch
 
-        
-    def update(self):
-
-        if self.kl_anneal_type == "Cyclical":
-            self.beta = self.frange_cycle_linear(n_iter= self.current_epoch, 
-                                                n_cycle= self.kl_anneal_cycle, 
+        if args.kl_anneal_type == "Cyclical":
+            self.L = self.frange_cycle_linear(n_iter= args.num_epoch, 
+                                                n_cycle= args.kl_anneal_cycle, 
                                                 ratio= self.kl_anneal_ratio)
-        elif self.kl_anneal_type == "Monotonic":
-            self.beta = self.frange_cycle_linear(n_iter= self.current_epoch, 
+        elif args.kl_anneal_type == "Monotonic":
+            self.L = self.frange_cycle_linear(n_iter= args.num_epoch, 
                                                 n_cycle= 1, 
-                                                ratio= self.kl_anneal_ratio)
-        elif self.kl_anneal_type == "constant":
-            self.beta = 1
+                                                ratio= args.kl_anneal_ratio)
+        elif args.kl_anneal_type == "constant":
+            self.L = np.ones(args.num_epoch)    
+
+    def update(self):
         # update epoch
         self.current_epoch += 1
     
     def get_beta(self):
-        return self.beta
+        return self.L[self.current_epoch]
 
-    def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
+    def frange_cycle_linear(self, n_epoch, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
         """
         n_iter: the iteration number
         n_cycle: number of cycles (M)
         ratio: proportion used to increase beta within a cycle (R)
         """
-        #!! float type
-        tau = (n_iter % np.ceil(self.total_n_iter / n_cycle)) / (self.total_n_iter / n_cycle)
-        # f(τ) = τ / R
-        return tau / ratio if tau <= ratio else stop
+        # https://github.com/haofuml/cyclical_annealing/blob/master/plot/plot_schedules.ipynb
+        L = np.ones(n_epoch)
+        period = np.ceil(self.total_n_iter / n_cycle)
+        # y / x, x is total period * ratio, step is slope
+        step = (stop - start) / (period * ratio)
+
+        for c in range(n_cycle):
+            v, i = start, 0
+            while v <= stop and (int(i + c * period) < n_epoch):
+                L[int(i + c * period)] = v
+                v += step
+                i += 1
+
+        return L
 
 
 
@@ -98,7 +101,7 @@ class VAE_Model(nn.Module):
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
         if self.args.optim == "AdamW":
             self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
+        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[20, 50], gamma=0.5)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
@@ -119,8 +122,8 @@ class VAE_Model(nn.Module):
         pass
     
     def training_stage(self):
+        train_loader = self.train_dataloader()
         for i in range(self.args.num_epoch):
-            train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
             
             self.beta_list.append(self.kl_annealing.get_beta())
@@ -132,9 +135,9 @@ class VAE_Model(nn.Module):
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu() / self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
             
             if self.current_epoch % self.args.per_save == 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
@@ -157,80 +160,68 @@ class VAE_Model(nn.Module):
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
-        sequence_mse_loss , sequence_kl_loss= list(), list()
+        mse_loss , kl_loss = 0, 0
         sequence_PSNR = list()
-
-        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+ 
+        frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         
-        cur_img = img[0]
-        for t in range(self.train_vi_len - 1):
-            trans_cur_img = self.frame_transformation(cur_img)
-            trans_next_label = self.label_transformation(label[t + 1])
-            trans_next_img = self.frame_transformation(img[t + 1])
-            z, mu, logvar = self.Gaussian_Predictor(trans_next_img, trans_next_label)
-            sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
+        pred_frame = frame[0]
+        for t in range(1, self.train_vi_len):
 
-            input = self.Decoder_Fusion(trans_cur_img, trans_next_label, z)
-            out_next_img = self.Generator(input)
-            cur_img = out_next_img
+            prev_frame = frame[t - 1] if adapt_TeacherForcing else pred_frame
 
-            sequence_mse_loss.append(self.mse_criterion(img[t + 1], out_next_img))
-            sequence_PSNR.append(Generate_PSNR(img[t + 1], out_next_img))
+            trans_prev_frame = self.frame_transformation(prev_frame)
+            trans_cur_label = self.label_transformation(label[t])
+            trans_cur_frame = self.frame_transformation(frame[t])
+            z, mu, logvar = self.Gaussian_Predictor(trans_cur_frame, trans_cur_label)
+            kl_loss += kl_criterion(mu, logvar, self.batch_size)
+            input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
+            pred_frame = self.Generator(input)
+            
+            mse_loss += self.mse_criterion(pred_frame, frame[t])
+            sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]))
 
-            if adapt_TeacherForcing:
-                cur_img = img[t + 1]
-
-        mse_loss = sum(sequence_mse_loss) / len(sequence_mse_loss)
-        kl_loss = sum(sequence_kl_loss) / len(sequence_kl_loss)
         beta = self.kl_annealing.get_beta()
         loss = mse_loss + beta * kl_loss
+
         self.optim.zero_grad()
         loss.backward()
         self.optimizer_step()
 
-        img = img.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
-        label = label.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
-
-        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss / (self.train_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
 
 
     def val_one_step(self, img, label):
 
-        sequence_mse_loss , sequence_kl_loss= list(), list()
+        mse_loss , kl_loss = 0, 0
         sequence_PSNR = list()
         
-        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
 
-        cur_img = img[0]
-        for t in range(self.val_vi_len - 1):
-            trans_cur_img = self.frame_transformation(cur_img)
-            trans_next_label = self.label_transformation(label[t + 1])
+        pred_frame = frame[0]
+        for t in range(1, self.val_vi_len):
+            trans_pred_frame = self.frame_transformation(pred_frame)
+            trans_cur_label = self.label_transformation(label[t])
             
             # cal KL loss, not use
-            trans_next_img = self.frame_transformation(img[t + 1])
-            z, mu, logvar = self.Gaussian_Predictor(trans_next_img, trans_next_label)
-            sequence_kl_loss.append(kl_criterion(mu, logvar, self.batch_size))
+            trans_cur_frame = self.frame_transformation(frame[t])
+            z, mu, logvar = self.Gaussian_Predictor(trans_cur_frame, trans_cur_label)
+            kl_loss += kl_criterion(mu, logvar, self.batch_size)
             
             # Actually used
-            z = torch.randn_like(z)
-            input = self.Decoder_Fusion(trans_cur_img, trans_next_label, z)
-            out_next_img = self.Generator(input)
-            cur_img = out_next_img
+            z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
+            input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
+            pred_frame = self.Generator(input)
             
-            sequence_mse_loss.append(self.mse_criterion(img[t + 1], out_next_img))
-            sequence_PSNR.append(Generate_PSNR(img[t + 1], out_next_img))
+            mse_loss += self.mse_criterion(pred_frame, frame[t])
+            sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]).item())
 
-        mse_loss = sum(sequence_mse_loss) / len(sequence_mse_loss)
-        kl_loss = sum(sequence_kl_loss) / len(sequence_kl_loss)
         beta = self.kl_annealing.get_beta()
         loss = mse_loss + beta * kl_loss
-
-        img = img.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
-        label = label.permute(1, 0, 2, 3, 4) # change tensor into (B, seq, C, H, W)
         
-        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss / (self.train_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -245,7 +236,6 @@ class VAE_Model(nn.Module):
             transforms.Resize((self.args.frame_H, self.args.frame_W)),
             transforms.ToTensor()
         ])
-
         dataset = Dataset_Dance(root=self.args.DR, transform=transform, mode='train', video_len=self.train_vi_len, \
                                                 partial=args.fast_partial if self.args.fast_train else args.partial)
         if self.current_epoch > self.args.fast_train_epoch:
@@ -255,7 +245,7 @@ class VAE_Model(nn.Module):
                                   batch_size=self.batch_size,
                                   num_workers=self.args.num_workers,
                                   drop_last=True,
-                                  shuffle=True)  
+                                  shuffle=False)  
         return train_loader
     
     def val_dataloader(self):
@@ -272,9 +262,10 @@ class VAE_Model(nn.Module):
         return val_loader
     
     def teacher_forcing_ratio_update(self):
+        
         if self.current_epoch >= self.tfr_sde:
-            self.tfr *= self.tfr_d_step
-            
+            self.tfr -= self.tfr_d_step
+            self.tfr = max(0, self.tfr)
             
             
     def tqdm_bar(self, mode, pbar, loss, lr, PSNR):
