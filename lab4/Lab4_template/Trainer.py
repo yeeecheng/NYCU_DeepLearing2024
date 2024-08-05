@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from math import log10
 
 def Generate_PSNR(imgs1, imgs2, data_range=1.):
+    # data_range based on imgs data range [0 ~ 1]
     """PSNR for torch tensor"""
     mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
@@ -178,7 +179,9 @@ class VAE_Model(nn.Module):
             kl_loss += kl_criterion(mu, logvar, self.batch_size)
             input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
             pred_frame = self.Generator(input)
-            
+            # if torch.isnan(pred_frame).any() or torch.isinf(pred_frame).any():
+            #     print(pred_frame)
+            #     raise ValueError("Train Generated image contains NaN or Inf values")
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]))
 
@@ -214,7 +217,9 @@ class VAE_Model(nn.Module):
             z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
             pred_frame = self.Generator(input)
-            
+            # if torch.isnan(pred_frame).any() or torch.isinf(pred_frame).any():
+            #     print(pred_frame)
+            #     raise ValueError("VAL Generated image contains NaN or Inf values")
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]).item())
 
@@ -291,7 +296,9 @@ class VAE_Model(nn.Module):
             self.tfr = checkpoint['tfr']
             
             self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
-            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
+            if self.args.optim == "AdamW":
+                self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
+            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
 
@@ -383,7 +390,7 @@ if __name__ == '__main__':
     
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
-    parser.add_argument('--fast_partial',       type=float, default=0.4,    help="Use part of the training data to fasten the convergence")
+    parser.add_argument('--fast_partial',       type=float, default=0.1,    help="Use part of the training data to fasten the convergence")
     parser.add_argument('--fast_train_epoch',   type=int, default=5,        help="Number of epoch to use fast train mode")
     
     # Kl annealing strategy arguments
