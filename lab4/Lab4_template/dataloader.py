@@ -36,12 +36,12 @@ class Dataset_Dance(torchData):
         
         self.img_folder = [path.replace('\\', '/') for path in self.img_folder]
         
+        self.label_transform = transform
         self.img_transform = transform
         # transform_list = list(self.img_transform.transforms)
-        # transform_list.append(transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)))
+        # transform_list.append(transforms.GaussianBlur(kernel_size=3))
         # self.img_transform = transforms.Compose(transform_list)
 
-        self.label_transform = transform
         self.partial = partial
         self.video_len = video_len
 
@@ -50,7 +50,6 @@ class Dataset_Dance(torchData):
 
     def __getitem__(self, index):
         path = self.img_folder[index]
-        
         imgs = []
         labels = []
         for i in range(self.video_len):

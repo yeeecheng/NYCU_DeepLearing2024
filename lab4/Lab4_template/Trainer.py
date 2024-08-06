@@ -102,7 +102,8 @@ class VAE_Model(nn.Module):
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
         if self.args.optim == "AdamW":
             self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
+        # self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
+        self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.001, step_size_up=730, mode='triangular')
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
@@ -125,8 +126,8 @@ class VAE_Model(nn.Module):
     def training_stage(self):
         train_loader = self.train_dataloader()
         for i in range(self.args.num_epoch):
-            adapt_TeacherForcing = True if random.random() < self.tfr else False
-            
+            # adapt_TeacherForcing = True if random.random() < self.tfr else False
+            adapt_TeacherForcing = False
             self.beta_list.append(self.kl_annealing.get_beta())
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
@@ -179,9 +180,6 @@ class VAE_Model(nn.Module):
             kl_loss += kl_criterion(mu, logvar, self.batch_size)
             input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
             pred_frame = self.Generator(input)
-            # if torch.isnan(pred_frame).any() or torch.isinf(pred_frame).any():
-            #     print(pred_frame)
-            #     raise ValueError("Train Generated image contains NaN or Inf values")
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]))
 
@@ -217,9 +215,6 @@ class VAE_Model(nn.Module):
             z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
             pred_frame = self.Generator(input)
-            # if torch.isnan(pred_frame).any() or torch.isinf(pred_frame).any():
-            #     print(pred_frame)
-            #     raise ValueError("VAL Generated image contains NaN or Inf values")
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]).item())
 
@@ -298,7 +293,8 @@ class VAE_Model(nn.Module):
             self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
             if self.args.optim == "AdamW":
                 self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
+            # self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
+            self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.001, step_size_up=730, mode='triangular')
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
 
