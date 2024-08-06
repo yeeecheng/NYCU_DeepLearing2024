@@ -103,7 +103,7 @@ class VAE_Model(nn.Module):
         if self.args.optim == "AdamW":
             self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
         self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
-        self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.00001, step_size_up=730, mode='triangular')
+        # self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.00001, step_size_up=730, mode='triangular')
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
