@@ -126,6 +126,7 @@ class Test_model(VAE_Model):
         decoded_frame_list = [img[0].cpu()]
         label_list = []
         cur_frame = img[0]
+        torch.manual_seed(3014)
         for t in range(self.val_vi_len - 1):
             trans_cur_frame = self.frame_transformation(cur_frame)
             trans_next_label = self.label_transformation(label[t + 1])

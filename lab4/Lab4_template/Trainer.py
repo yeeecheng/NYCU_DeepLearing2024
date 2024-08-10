@@ -126,9 +126,13 @@ class VAE_Model(nn.Module):
     
     def training_stage(self):
         train_loader = self.train_dataloader()
+        self.history = {"train_loss": list(), "train_PSNR": list(), "val_loss": list(), "val_PSNR": list()}
         for i in range(self.args.num_epoch):
             adapt_TeacherForcing = True if random.random() < self.tfr else False
+            
             self.beta_list.append(self.kl_annealing.get_beta())
+            train_loss, train_PSNR = list(), list()
+            
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
                 img = img.to(self.args.device)
@@ -137,21 +141,29 @@ class VAE_Model(nn.Module):
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu() / self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+                    self.tqdm_bar('train [TF: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu() / self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
-            
+                    self.tqdm_bar('train [TF: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+
+                train_loss.append(loss)
+                train_PSNR.append(PSNR)
+
             self.eval()
-                
+            self.history["train_loss"].append(sum(train_loss) / len(train_loss))
+            self.history["train_PSNR"].append(sum(train_PSNR) / len(train_PSNR))
+
             self.current_epoch += 1
             self.scheduler.step()
             self.teacher_forcing_ratio_update()
             self.kl_annealing.update()
+        
+        self.draw_history(self.history)
         self.draw_beta_curve()
             
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
+        val_loss, val_PSNR = list(), list()
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
@@ -160,7 +172,12 @@ class VAE_Model(nn.Module):
             if PSNR > self.best_PSNR:
                 self.best_PSNR = PSNR
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}_{self.args.device}.ckpt"))
-    
+            val_loss.append(loss)
+            val_PSNR.append(PSNR)
+        
+        self.history["val_loss"].append(sum(val_loss) / len(val_loss))
+        self.history["val_PSNR"].append(sum(val_PSNR) / len(val_PSNR))
+
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
         mse_loss , kl_loss = 0, 0
@@ -340,6 +357,20 @@ class VAE_Model(nn.Module):
         plt.grid(True)
         plt.savefig(f'./PSNR.png')
 
+    # draw accuracy and loss during the training and testing 
+    def draw_history(self, history, show= False):
+        
+        plt.figure()
+        plt.plot(torch.tensor(history["train_PSNR"]), label = 'train PSNR')
+        plt.plot(torch.tensor(history["val_PSNR"]), label = 'val PSNR')
+        plt.plot(torch.tensor(history["train_loss"]), label = 'train loss')
+        plt.plot(torch.tensor(history["val_loss"]), label = 'val loss')
+        plt.xlabel('Epoch')
+        plt.legend()
+
+        plt.savefig('PSNR_loss_history.png')
+        if show:
+            plt.show()
 
 def main(args):
     
@@ -389,7 +420,7 @@ if __name__ == '__main__':
     
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
-    parser.add_argument('--fast_partial',       type=float, default=0.1,    help="Use part of the training data to fasten the convergence")
+    parser.add_argument('--fast_partial',       type=float, default=0.05,    help="Use part of the training data to fasten the convergence")
     parser.add_argument('--fast_train_epoch',   type=int, default=5,        help="Number of epoch to use fast train mode")
     
     # Kl annealing strategy arguments
