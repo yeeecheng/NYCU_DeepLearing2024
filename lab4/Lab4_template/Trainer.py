@@ -358,7 +358,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
     parser.add_argument('--lr',            type=float,  default=0.0005,     help="initial learning rate")
-    parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda:1")
+    parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
     parser.add_argument('--test',          action='store_true')
