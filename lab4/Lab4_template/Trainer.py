@@ -60,7 +60,7 @@ class kl_annealing():
     def get_beta(self):
         return self.L[self.current_epoch]
 
-    def frange_cycle_linear(self, n_epoch, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
+    def frange_cycle_linear(self, n_epoch, start=0.1, stop=1.0,  n_cycle=1, ratio=1):
         """
         n_iter: the iteration number
         n_cycle: number of cycles (M)
@@ -102,8 +102,7 @@ class VAE_Model(nn.Module):
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
         if self.args.optim == "AdamW":
             self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
-        # self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.00001, step_size_up=730, mode='triangular')
+        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
@@ -119,15 +118,16 @@ class VAE_Model(nn.Module):
         
         # for check kl annealing
         self.beta_list = list()
+
+        self.best_PSNR = 0
         
     def forward(self, img, label):
         pass
     
     def training_stage(self):
+        train_loader = self.train_dataloader()
         for i in range(self.args.num_epoch):
-            train_loader = self.train_dataloader()
-            # adapt_TeacherForcing = True if random.random() < self.tfr else False
-            adapt_TeacherForcing = False
+            adapt_TeacherForcing = True if random.random() < self.tfr else False
             self.beta_list.append(self.kl_annealing.get_beta())
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
@@ -141,10 +141,8 @@ class VAE_Model(nn.Module):
                 else:
                     self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
             
-            if self.current_epoch % self.args.per_save == 0:
-                self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
-                
             self.eval()
+                
             self.current_epoch += 1
             self.scheduler.step()
             self.teacher_forcing_ratio_update()
@@ -159,18 +157,22 @@ class VAE_Model(nn.Module):
             label = label.to(self.args.device)
             loss, PSNR = self.val_one_step(img, label)
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
+            if PSNR > self.best_PSNR:
+                self.best_PSNR = PSNR
+                self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}_{self.args.device}.ckpt"))
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
         mse_loss , kl_loss = 0, 0
         sequence_PSNR = list()
+        self.optim.zero_grad()
  
         frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         
         pred_frame = frame[0]
         for t in range(1, self.train_vi_len):
-
+            
             prev_frame = frame[t - 1] if adapt_TeacherForcing else pred_frame
 
             trans_prev_frame = self.frame_transformation(prev_frame)
@@ -178,19 +180,19 @@ class VAE_Model(nn.Module):
             trans_cur_frame = self.frame_transformation(frame[t])
             z, mu, logvar = self.Gaussian_Predictor(trans_cur_frame, trans_cur_label)
             kl_loss += kl_criterion(mu, logvar, self.batch_size)
-            input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
-            pred_frame = self.Generator(input)
+            G_input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
+            pred_frame = self.Generator(G_input)
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]))
 
         beta = self.kl_annealing.get_beta()
+        mse_loss /= (self.train_vi_len - 1)
+        kl_loss /= (self.train_vi_len - 1)
         loss = mse_loss + beta * kl_loss
 
-        self.optim.zero_grad()
         loss.backward()
         self.optimizer_step()
-
-        return loss / (self.train_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
 
 
     def val_one_step(self, img, label):
@@ -213,15 +215,17 @@ class VAE_Model(nn.Module):
             
             # Actually used
             z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
-            input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
-            pred_frame = self.Generator(input)
+            G_input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
+            pred_frame = self.Generator(G_input)
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]).item())
 
         beta = self.kl_annealing.get_beta()
+        mse_loss /= (self.val_vi_len - 1)
+        kl_loss /= (self.val_vi_len - 1)
         loss = mse_loss + beta * kl_loss
         
-        return loss / (self.val_vi_len - 1), sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -269,7 +273,7 @@ class VAE_Model(nn.Module):
             
             
     def tqdm_bar(self, mode, pbar, loss, lr, PSNR):
-        pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}, PSNR:{PSNR}" , refresh=False)
+        pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}, PSNR:{PSNR} current_best_PSNR:{self.best_PSNR}", refresh=False)
         pbar.set_postfix(loss=float(loss), refresh=False)
         pbar.refresh()
         
@@ -293,8 +297,7 @@ class VAE_Model(nn.Module):
             self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
             if self.args.optim == "AdamW":
                 self.optim      = optim.AdamW(self.parameters(), lr=self.args.lr)
-            # self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[5, 10], gamma=0.2)
-            self.scheduler =  optim.lr_scheduler.CyclicLR(self.optim, base_lr=0.000001, max_lr=0.001, step_size_up=730, mode='triangular')
+            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
 
@@ -354,8 +357,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
-    parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
+    parser.add_argument('--lr',            type=float,  default=0.0005,     help="initial learning rate")
+    parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda:1")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
     parser.add_argument('--test',          action='store_true')

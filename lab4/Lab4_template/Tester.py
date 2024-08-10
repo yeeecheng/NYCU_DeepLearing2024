@@ -118,9 +118,8 @@ class Test_model(VAE_Model):
         
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
-        assert label.shape[0] == 630, "Testing pose seqence should be 630"
-        assert img.shape[0] == 1, "Testing video seqence should be 1"
-        # denormalize = transforms.Normalize(mean=(-0.485/0.229, -0.456/0.224, -0.406/0.225), std=(1/0.229, 1/0.224, 1/0.225))
+        assert label.shape[0] == 630, "Testing pose sequence should be 630"
+        assert img.shape[0] == 1, "Testing video sequence should be 1"
         # decoded_frame_list is used to store the predicted frame seq
         # label_list is used to store the label seq
         # Both list will be used to make gif
@@ -130,14 +129,11 @@ class Test_model(VAE_Model):
         for t in range(self.val_vi_len - 1):
             trans_cur_frame = self.frame_transformation(cur_frame)
             trans_next_label = self.label_transformation(label[t + 1])
-            # Actually used
-            # z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             z = torch.randn((1, self.args.N_dim, self.args.frame_H, self.args.frame_W), device= self.args.device)
             input = self.Decoder_Fusion(trans_cur_frame, trans_next_label, z)
             out_next_frame = self.Generator(input)
             cur_frame = out_next_frame
 
-            # decoded_frame_list.append(denormalize(out_next_frame).cpu())
             decoded_frame_list.append(out_next_frame.cpu())
 
         # Please do not modify this part, it is used for visulization
@@ -176,7 +172,7 @@ class Test_model(VAE_Model):
 
     def load_checkpoint(self):
         if self.args.ckpt_path != None:
-            checkpoint = torch.load(self.args.ckpt_path)
+            checkpoint = torch.load(self.args.ckpt_path, map_location='cuda:0')
             self.load_state_dict(checkpoint['state_dict'], strict=True) 
 
 
