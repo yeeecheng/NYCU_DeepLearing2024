@@ -360,11 +360,10 @@ class VAE_Model(nn.Module):
     def draw_history(self, history, show= False):
         
         plt.figure()
-        plt.plot(torch.tensor(history["train_PSNR"]), label = 'train PSNR')
-        plt.plot(torch.tensor(history["val_PSNR"]), label = 'val PSNR')
         plt.plot(torch.tensor(history["train_loss"]), label = 'train loss')
         plt.plot(torch.tensor(history["val_loss"]), label = 'val loss')
         plt.xlabel('Epoch')
+        plt.ylabel('loss')
         plt.legend()
 
         plt.savefig('PSNR_loss_history.png')
