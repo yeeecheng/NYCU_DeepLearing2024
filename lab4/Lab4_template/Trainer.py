@@ -131,8 +131,8 @@ class VAE_Model(nn.Module):
             adapt_TeacherForcing = True if random.random() < self.tfr else False
             
             self.beta_list.append(self.kl_annealing.get_beta())
-            train_loss, train_PSNR = list(), list()
-            
+            train_loss, train_PSNR = 0, 0
+            loader_cnt = 0 
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
                 img = img.to(self.args.device)
@@ -145,12 +145,13 @@ class VAE_Model(nn.Module):
                 else:
                     self.tqdm_bar('train [TF: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
 
-                train_loss.append(loss)
-                train_PSNR.append(PSNR)
+                train_loss += loss
+                train_PSNR += PSNR
+                loader_cnt += 1
 
             self.eval()
-            self.history["train_loss"].append(sum(train_loss) / len(train_loss))
-            self.history["train_PSNR"].append(sum(train_PSNR) / len(train_PSNR))
+            self.history["train_loss"].append(train_loss / loader_cnt)
+            self.history["train_PSNR"].append(train_PSNR / loader_cnt)
 
             self.current_epoch += 1
             self.scheduler.step()
@@ -163,7 +164,8 @@ class VAE_Model(nn.Module):
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
-        val_loss, val_PSNR = list(), list()
+        val_loss, val_PSNR = 0, 0
+        loader_cnt = 0 
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
@@ -172,16 +174,17 @@ class VAE_Model(nn.Module):
             if PSNR > self.best_PSNR:
                 self.best_PSNR = PSNR
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}_{self.args.device}.ckpt"))
-            val_loss.append(loss)
-            val_PSNR.append(PSNR)
+            val_loss += loss
+            val_PSNR += PSNR
+            loader_cnt += 1
         
-        self.history["val_loss"].append(sum(val_loss) / len(val_loss))
-        self.history["val_PSNR"].append(sum(val_PSNR) / len(val_PSNR))
+        self.history["val_loss"].append(val_loss / loader_cnt)
+        self.history["val_PSNR"].append(val_PSNR / loader_cnt)
 
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
         mse_loss , kl_loss = 0, 0
-        sequence_PSNR = list()
+        sequence_PSNR = 0
         self.optim.zero_grad()
  
         frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -200,7 +203,7 @@ class VAE_Model(nn.Module):
             G_input = self.Decoder_Fusion(trans_prev_frame, trans_cur_label, z)
             pred_frame = self.Generator(G_input)
             mse_loss += self.mse_criterion(pred_frame, frame[t])
-            sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]))
+            sequence_PSNR += Generate_PSNR(pred_frame, frame[t])
 
         beta = self.kl_annealing.get_beta()
         mse_loss /= (self.train_vi_len - 1)
@@ -209,13 +212,13 @@ class VAE_Model(nn.Module):
 
         loss.backward()
         self.optimizer_step()
-        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss, sequence_PSNR / (self.train_vi_len - 1)
 
 
     def val_one_step(self, img, label):
 
         mse_loss , kl_loss = 0, 0
-        sequence_PSNR = list()
+        sequence_PSNR = 0
         
         frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -235,14 +238,14 @@ class VAE_Model(nn.Module):
             G_input = self.Decoder_Fusion(trans_pred_frame, trans_cur_label, z)
             pred_frame = self.Generator(G_input)
             mse_loss += self.mse_criterion(pred_frame, frame[t])
-            sequence_PSNR.append(Generate_PSNR(pred_frame, frame[t]).item())
+            sequence_PSNR += Generate_PSNR(pred_frame, frame[t]).item()
 
         beta = self.kl_annealing.get_beta()
         mse_loss /= (self.val_vi_len - 1)
         kl_loss /= (self.val_vi_len - 1)
         loss = mse_loss + beta * kl_loss
         
-        return loss, sum(sequence_PSNR) / len(sequence_PSNR)
+        return loss, sequence_PSNR / (self.val_vi_len - 1)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
