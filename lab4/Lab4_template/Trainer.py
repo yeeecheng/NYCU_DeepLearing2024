@@ -126,12 +126,12 @@ class VAE_Model(nn.Module):
     
     def training_stage(self):
         train_loader = self.train_dataloader()
-        self.history = {"train_loss": list(), "train_PSNR": list(), "val_loss": list(), "val_PSNR": list()}
+        self.history = {"train_loss": list(), "val_loss": list()}
         for i in range(self.args.num_epoch):
             adapt_TeacherForcing = True if random.random() < self.tfr else False
             
             self.beta_list.append(self.kl_annealing.get_beta())
-            train_loss, train_PSNR = 0, 0
+            train_loss = 0
             loader_cnt = 0 
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 
@@ -146,12 +146,10 @@ class VAE_Model(nn.Module):
                     self.tqdm_bar('train [TF: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu()/ self.batch_size, lr=self.scheduler.get_last_lr()[0], PSNR= PSNR)
 
                 train_loss += loss
-                train_PSNR += PSNR
                 loader_cnt += 1
 
             self.eval()
             self.history["train_loss"].append(train_loss / loader_cnt)
-            self.history["train_PSNR"].append(train_PSNR / loader_cnt)
 
             self.current_epoch += 1
             self.scheduler.step()
@@ -164,7 +162,7 @@ class VAE_Model(nn.Module):
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
-        val_loss, val_PSNR = 0, 0
+        val_loss = 0
         loader_cnt = 0 
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
@@ -175,11 +173,9 @@ class VAE_Model(nn.Module):
                 self.best_PSNR = PSNR
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}_{self.args.device}.ckpt"))
             val_loss += loss
-            val_PSNR += PSNR
             loader_cnt += 1
         
         self.history["val_loss"].append(val_loss / loader_cnt)
-        self.history["val_PSNR"].append(val_PSNR / loader_cnt)
 
     def training_one_step(self, img, label, adapt_TeacherForcing):
 
