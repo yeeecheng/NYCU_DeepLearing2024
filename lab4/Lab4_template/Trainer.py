@@ -215,7 +215,6 @@ class VAE_Model(nn.Module):
 
         mse_loss , kl_loss = 0, 0
         sequence_PSNR = 0
-        
         frame = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
 
@@ -235,12 +234,14 @@ class VAE_Model(nn.Module):
             pred_frame = self.Generator(G_input)
             mse_loss += self.mse_criterion(pred_frame, frame[t])
             sequence_PSNR += Generate_PSNR(pred_frame, frame[t]).item()
+            
 
         beta = self.kl_annealing.get_beta()
         mse_loss /= (self.val_vi_len - 1)
         kl_loss /= (self.val_vi_len - 1)
         loss = mse_loss + beta * kl_loss
-        
+    
+
         return loss, sequence_PSNR / (self.val_vi_len - 1)
                 
     def make_gif(self, images_list, img_name):
@@ -342,14 +343,14 @@ class VAE_Model(nn.Module):
     def draw_PSNR_curve(self, sequence_PSNR):
         import matplotlib.pyplot as plt
 
-        epochs = list(range(1, len(sequence_PSNR)))
+        epochs = list(range(1, len(sequence_PSNR) + 1))
         PSNR_values = sequence_PSNR
         
         plt.figure(figsize=(10, 6))
         plt.plot(epochs, PSNR_values, marker='o', linestyle='-', color='b', label='PSNR Value')
 
-        plt.title('PSNR Value over Epochs')
-        plt.xlabel('Epochs')
+        plt.title('PSNR Value per Frame')
+        plt.xlabel('Frame')
         plt.ylabel('PSNR')
         plt.legend()
 

@@ -185,7 +185,9 @@ def main(args):
     model.load_checkpoint()
     model.eval()
 
+    pytorch_total_params = sum(p.numel() for p in model.parameters())
 
+    print(f"參數數量：{pytorch_total_params}")
 
 
 

@@ -6,3 +6,9 @@
 */*/*.pth
 */*/*.ckpt
 /lab3/dataset
+/lab4/LAB4_Dataset
+/lab4/*.gif
+/lab4/submission.csv
+/lab4/*.ckpt
+/lab5/lab5_dataset
+/lab5/models/VQGAN/checkpoints/VQGAN.pt
