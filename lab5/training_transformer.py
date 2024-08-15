@@ -130,7 +130,7 @@ if __name__ == '__main__':
         eval_loss = train_transformer.eval_one_epoch(val_loader, epoch)
 
         history["train_loss"].append(train_loss)
-        history["val_loss"].append(eval_loss)
+        history["eval_loss"].append(eval_loss)
 
         if eval_loss > best_loss:
             best_loss = eval_loss

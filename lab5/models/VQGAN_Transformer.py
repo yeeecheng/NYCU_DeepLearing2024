@@ -74,22 +74,35 @@ class MaskGit(nn.Module):
     
 ##TODO3 step1-1: define one iteration decoding   
     @torch.no_grad()
-    def inpainting(self):
+    def inpainting(self, z_indices, mask, mask_num, ratio, mask_func):
         
-        logits = self.transformer(None)
+        masked_z_indices = mask * self.mask_token_id + (~mask) * z_indices
+        logits = self.transformer(masked_z_indices)
         #Apply softmax to convert logits into a probability distribution across the last dimension.
         prob = torch.softmax(logits, dim= -1)
-        logits = None
-
-        #FIND MAX probability for each token value
-        z_indices_predict_prob, z_indices_predict = None
-
-        ratio=None 
-        #predicted probabilities add temperature annealing gumbel noise as confidence
-        g = None  # gumbel noise
-        temperature = self.choice_temperature * (1 - ratio)
-        confidence = z_indices_predict_prob + temperature * g
         
+        #FIND MAX probability for each token value
+        z_indices_predict = torch.distributions.categorical.Categorical(logits= logits).sample()
+        with torch.any(z_indices_predict == self.mask_token_id):
+            z_indices_predict = torch.distributions.categorical.Categorical(logits= logits).sample()
+
+        z_indices_predict_prob = prob.gather(-1, z_indices_predict.unsqueeze(-1)).squeeze(-1)
+        z_indices_predict_prob = torch.where(mask, z_indices_predict_prob, torch.zeros_like(z_indices_predict_prob) + torch.inf)
+
+        mask_ratio = self.gamma_func(mask_func)(ratio)
+        mask_len = torch.floor(mask_num * mask_ratio).long()
+
+        #predicted probabilities add temperature annealing gumbel noise as confidence
+        g = torch.distributions.gumbel.Gumbel(0, 1).sample(z_indices_predict_prob.shape).to(z_indices_predict_prob.device)  # gumbel noise
+        temperature = self.choice_temperature * (1 - mask_ratio)
+        confidence = z_indices_predict_prob + temperature * g
+
+        sorted_confidence = torch.sort(confidence, dim= -1)[0]
+        cut_off = sorted_confidence[:, mask_len].unsqueeze(-1)
+        new_mask = (confidence < cut_off)
+        return z_indices_predict, new_mask    
+
+
         #hint: If mask is False, the probability should be set to infinity, so that the tokens are not affected by the transformer's prediction
         #sort the confidence for the rank 
         #define how much the iteration remain predicted tokens by mask scheduling
