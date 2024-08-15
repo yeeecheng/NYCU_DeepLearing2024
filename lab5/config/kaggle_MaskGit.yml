@@ -1,0 +1,22 @@
+---
+    MODEL_NAME: MaskGit
+
+    
+    model_param:
+    
+      VQ_Configs:
+        VQ_config_path: /kaggle/working/NYCU_DeepLearing2024/lab5/models/VQGAN/config/VQGAN.yml
+        VQ_CKPT_path: /kaggle/input/checkpoints/VQGAN.pt
+      
+      num_image_tokens: 256
+      num_codebook_vectors: 1024
+      choice_temperature: 4.5
+      gamma_type: cosine
+
+      Transformer_param:
+        num_image_tokens: 256
+        num_codebook_vectors: 1024
+        dim: 768
+        n_layers: 15
+        hidden_dim: 1536
+
