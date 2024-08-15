@@ -61,18 +61,24 @@ class MaskGit(nn.Module):
 
 ##TODO2 step1-3:            
     def forward(self, x):
-        
+        # Y
         _, z_indices = self.encode_to_z(x) #ground truth
-        logits = self.transformer()  #transformer predict the probability of tokens
-        raise Exception('TODO2 step1-3!')
+        mask_token = torch.full_like(z_indices, self.mask_token_id, dtype=torch.long)
+        # M
+        mask = (torch.rand(z_indices.shape, device=z_indices.device) < 0.5).bool()
+        # replace Yi with [mask] if m = 1, otherwise, when m = 0
+        new_indices = torch.where(mask, mask_token, z_indices)
+        logits = self.transformer(new_indices)  #transformer predict the probability of tokens
+        
         return logits, z_indices
     
 ##TODO3 step1-1: define one iteration decoding   
     @torch.no_grad()
     def inpainting(self):
-        raise Exception('TODO3 step1-1!')
+        
         logits = self.transformer(None)
         #Apply softmax to convert logits into a probability distribution across the last dimension.
+        prob = torch.softmax(logits, dim= -1)
         logits = None
 
         #FIND MAX probability for each token value

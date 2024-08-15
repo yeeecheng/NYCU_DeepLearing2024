@@ -11,7 +11,9 @@ class DotProductAttention(nn.Module):
 
     def forward(self, q, k, v, d_k):
         # attention weight
-        weight = nn.Softmax(torch.matmul(q, k) / math.sqrt(d_k))
+        # mul scale
+        attn = torch.matmul(q, k.transpose(2, 1)) / math.sqrt(d_k)
+        weight = attn.softmax(dim= -1)        
         weight = self.attn_drop(weight)
         return torch.matmul(weight, v)
 #TODO1
@@ -42,12 +44,12 @@ class MultiHeadAttention(nn.Module):
             d_k , d_v for one head will be 768//16.
         '''
         I = torch.ones_like(x)
-        w = self.__split_heads(self.W_q(I), x[0])
-        k = self.__split_heads(self.W_k(I), x[0])
-        v = self.__split_heads(self.W_v(I), x[0])
+        w = self.__split_heads(self.W_q(I), x.shape[0])
+        k = self.__split_heads(self.W_k(I), x.shape[0])
+        v = self.__split_heads(self.W_v(I), x.shape[0])
         context = self.attention(w, k, v, self.d_k)
-        content = context.view(x[0], -1, self.dim)
-        return self.W_o(content)
+        concat_content = context.view(x.shape[0], -1, self.dim)
+        return self.W_o(concat_content)
 
 class MLP(nn.Sequential):
     def __init__(self, dim=768, hidden_dim=3072, drop_rate=0.1):
