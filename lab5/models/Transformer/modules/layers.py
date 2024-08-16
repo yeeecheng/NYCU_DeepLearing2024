@@ -1,37 +1,23 @@
 import torch.nn as nn
 import torch
 import math
+from einops import rearrange
 
-
-class DotProductAttention(nn.Module):
-    # https://mkh800.medium.com/%E7%AD%86%E8%A8%98-attention-%E5%8F%8A-transformer-%E6%9E%B6%E6%A7%8B%E7%90%86%E8%A7%A3-c9c5479fdc8a
-    def __init__(self, d_k):
-        super(DotProductAttention, self).__init__()
-        self.scale = d_k ** -0.5
-
-    def forward(self, q, k, v):
-        # attention weight
-        # mul scale
-        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
-        weight = attn.softmax(dim= -1)   
-        return torch.matmul(weight, v)
-#TODO1
 class MultiHeadAttention(nn.Module):
     def __init__(self, dim=768, num_heads=16, attn_drop=0.1):
         super(MultiHeadAttention, self).__init__()
+        
+        self.dim_head = dim // num_heads
+        self.heads = num_heads
+        self.scale = self.dim_head ** -0.5
 
-        self.num_heads = num_heads
-        self.dim = dim
-        self.d_k = self.dim // self.num_heads
-
-        self.to_qkv = nn.Linear(self.dim, 3 * self.dim, bias= False)
+        self.to_qkv = nn.Linear(dim, dim * 3, bias= False)
+        
         # output
         self.W_o = nn.Sequential(
-            nn.Linear(self.dim, self.dim),
+            nn.Linear(dim, dim),
             nn.Dropout(p= attn_drop)
         )
-
-        self.attention = DotProductAttention(self.d_k)
 
     def forward(self, x):
         ''' Hint: input x tensor shape is (batch_size, num_image_tokens, dim), 
@@ -41,11 +27,16 @@ class MultiHeadAttention(nn.Module):
             Total d_k , d_v set to 768
             d_k , d_v for one head will be 768//16.
         '''
-        batch_size = x.shape[0]
+        h = self.heads
         qkv = self.to_qkv(x)
-        q, k, v = tuple(qkv.view(3, batch_size, self.num_heads, -1, self.d_k))
-        context = self.attention(q, k, v)
-        concat_content = context.view(batch_size, -1, self.dim)
+        q, k, v = tuple(rearrange(qkv, 'b n (qkv h d) -> qkv b h n d', h=h, qkv=3))
+        
+        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        weight = attn.softmax(dim= -1)   
+        
+        context = torch.matmul(weight, v)
+        concat_content = rearrange(context, 'b h n d -> b n (h d)', h=h)
+        
         return self.W_o(concat_content)
 
 class MLP(nn.Sequential):
