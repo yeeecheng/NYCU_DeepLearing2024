@@ -119,7 +119,7 @@ if __name__ == '__main__':
     if args.checkpoint_path is not None:
         checkpoint = torch.load(args.checkpoint_path)
         train_transformer.model.load_state_dict(checkpoint['model_state_dict'])
-        train_transformer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        train_transformer.optim.load_state_dict(checkpoint['optimizer_state_dict'])
         prev_epochs = checkpoint['epoch']
         history = checkpoint['history']
         best_loss = checkpoint['best_loss']
@@ -139,4 +139,4 @@ if __name__ == '__main__':
                         'epoch': epoch, 
                         'history': history,
                         'best_loss': best_loss,
-                        'optimizer_state_dict': train_transformer.optim.optimizer.state_dict()}, "./best.pth")
+                        'optimizer_state_dict': train_transformer.optim.state_dict()}, "./best.pth")
