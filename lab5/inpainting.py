@@ -143,7 +143,6 @@ if __name__ == '__main__':
         mask = mask.to(device=args.device)
         mask_b = t.get_mask_latent(mask)       
         maskgit.inpainting(image,mask_b,i)
-        i+=1
         
 
 

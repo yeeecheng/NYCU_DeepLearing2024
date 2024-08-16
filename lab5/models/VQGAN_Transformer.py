@@ -64,7 +64,7 @@ class MaskGit(nn.Module):
         
         # Y
         _, z_indices = self.encode_to_z(x)
-        mask_token = torch.ones(z_indices.shape, device=z_indices.device).long() * self.mask_token_id 
+        mask_token = self.mask_token_id * torch.ones_like(z_indices, device=z_indices.device)
         # M
         mask = torch.bernoulli(0.5 * torch.ones(z_indices.shape, device=z_indices.device)).bool()
         # replace Yi with [mask] if m = 1, otherwise, when m = 0

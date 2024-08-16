@@ -23,7 +23,7 @@ class TrainTransformer:
         os.makedirs("transformer_checkpoints", exist_ok=True)
 
     def train_one_epoch(self, train_loader, epoch):
-        
+        self.model.train()
         batch_loss = 0
         pbar = tqdm(enumerate(train_loader))
 
