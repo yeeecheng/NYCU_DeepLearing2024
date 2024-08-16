@@ -7,7 +7,7 @@ class DotProductAttention(nn.Module):
     # https://mkh800.medium.com/%E7%AD%86%E8%A8%98-attention-%E5%8F%8A-transformer-%E6%9E%B6%E6%A7%8B%E7%90%86%E8%A7%A3-c9c5479fdc8a
     def __init__(self, d_k):
         super(DotProductAttention, self).__init__()
-        self.scale = d_k ** 0.5
+        self.scale = d_k ** -0.5
 
     def forward(self, q, k, v):
         # attention weight
