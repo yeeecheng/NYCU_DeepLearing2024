@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 #TODO2 step1-4: design the transformer training strategy
 class TrainTransformer:
     def __init__(self, args, MaskGit_CONFIGS):
+        self.args = args
         self.model = VQGANTransformer(MaskGit_CONFIGS["model_param"]).to(device=args.device)
         self.optim,self.scheduler = self.configure_optimizers(args)
         self.prepare_training()
@@ -24,45 +25,45 @@ class TrainTransformer:
 
     def train_one_epoch(self, train_loader, epoch):
         self.model.train()
-        batch_loss = 0
+        batch_loss = []
         pbar = tqdm(enumerate(train_loader))
 
         for i, batch in pbar:
-            img = batch.to(args.device)
+            img = batch.to(self.args.device)
             # output: gt, pred
             logits, z_indices = self.model(img)
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
             loss.backward()
 
-            batch_loss += loss.item()           
+            batch_loss.append(loss.item())           
             if i % args.accum_grad == 0:
                 self.optim.step()
                 self.optim.zero_grad()
-            pbar.set_description_str(f"epoch: {epoch} / {args.epochs}, iter: {i} / {len(train_loader)}, loss: {batch_loss / (i + 1 )}")
+            pbar.set_description_str(f"epoch: {epoch} / {self.args.epochs}, iter: {i} / {len(train_loader)}, loss: {np.mean(batch_loss)}")
 
-        return batch_loss / len(train_loader)
+        return np.mean(batch_loss)
     
     def eval_one_epoch(self, eval_loader, epoch):
         
-        batch_loss = 0
+        batch_loss = []
         pbar = tqdm(enumerate(eval_loader))
         self.model.eval()
         with torch.no_grad():
 
             for i, batch in pbar:
-                img = batch.to(args.device)
+                img = batch.to(self.args.device)
                 # output: gt, pred
                 logits, z_indices = self.model(img)
                 loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
+                batch_loss.append(loss.item())          
 
-                batch_loss += loss.item()
-                pbar.set_description_str(f"epoch: {epoch} / {args.epochs}, iter: {i} / {len(eval_loader)}, loss: {batch_loss / (i + 1)}")
+                pbar.set_description_str(f"epoch: {epoch} / {self.args.epochs}, iter: {i} / {len(eval_loader)}, loss: {np.mean(batch_loss)}")
 
-        return batch_loss / len(eval_loader)
+        return np.mean(batch_loss)
     
 
     def configure_optimizers(self, args): 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr= args.learning_rate, betas= (0.9, 0.96))
+        optimizer = torch.optim.Adam(self.model.parameters(), lr= args.learning_rate)
         scheduler = None
         return optimizer,scheduler
 
@@ -132,7 +133,7 @@ if __name__ == '__main__':
         history["train_loss"].append(train_loss)
         history["eval_loss"].append(eval_loss)
 
-        if eval_loss > best_loss:
+        if eval_loss < best_loss:
             best_loss = eval_loss
             torch.save({'model_state_dict': train_transformer.model.state_dict(), 
                         'epoch': epoch, 

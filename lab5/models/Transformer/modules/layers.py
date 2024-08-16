@@ -41,11 +41,11 @@ class MultiHeadAttention(nn.Module):
             Total d_k , d_v set to 768
             d_k , d_v for one head will be 768//16.
         '''
-
+        batch_size = x.shape[0]
         qkv = self.to_qkv(x)
-        q, k, v = tuple(qkv.view(3, x.shape[0], self.num_heads, -1, self.d_k))
+        q, k, v = tuple(qkv.view(3, batch_size, self.num_heads, -1, self.d_k))
         context = self.attention(q, k, v)
-        concat_content = context.view(x.shape[0], -1, self.dim)
+        concat_content = context.view(batch_size, -1, self.dim)
         return self.W_o(concat_content)
 
 class MLP(nn.Sequential):
