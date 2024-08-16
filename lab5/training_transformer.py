@@ -139,4 +139,4 @@ if __name__ == '__main__':
                         'epoch': epoch, 
                         'history': history,
                         'best_loss': best_loss,
-                        'optimizer_state_dict': train_transformer.optimizer.state_dict()}, "./best.pth")
+                        'optimizer_state_dict': train_transformer.optim.optimizer.state_dict()}, "./best.pth")
