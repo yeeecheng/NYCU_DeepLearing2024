@@ -16,7 +16,9 @@ from tqdm import tqdm
 class MaskGIT:
     def __init__(self, args, MaskGit_CONFIGS):
         self.model = VQGANTransformer(MaskGit_CONFIGS["model_param"]).to(device=args.device)
-        self.model.load_transformer_checkpoint(args.load_transformer_ckpt_path)
+        #self.model.load_transformer_checkpoint(args.load_transformer_ckpt_path)
+        checkpoint = torch.load(args.load_transformer_ckpt_path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
         self.total_iter=args.total_iter
         self.mask_func=args.mask_func
@@ -121,15 +123,15 @@ if __name__ == '__main__':
     
     
 #TODO3 step1-2: modify the path, MVTM parameters
-    parser.add_argument('--load-transformer-ckpt-path', type=str, default='', help='load ckpt')
+    parser.add_argument('--load-transformer-ckpt-path', type=str, default='./best.pth', help='load ckpt')
     
     #dataset path
-    parser.add_argument('--test-maskedimage-path', type=str, default='./cat_face/masked_image', help='Path to testing image dataset.')
-    parser.add_argument('--test-mask-path', type=str, default='./mask64', help='Path to testing mask dataset.')
+    parser.add_argument('--test-maskedimage-path', type=str, default='./lab5_dataset/masked_image', help='Path to testing image dataset.')
+    parser.add_argument('--test-mask-path', type=str, default='./lab5_dataset/mask64', help='Path to testing mask dataset.')
     #MVTM parameter
-    parser.add_argument('--sweet-spot', type=int, default=0, help='sweet spot: the best step in total iteration')
-    parser.add_argument('--total-iter', type=int, default=0, help='total step for mask scheduling')
-    parser.add_argument('--mask-func', type=str, default='0', help='mask scheduling function')
+    parser.add_argument('--sweet-spot', type=int, default=8, help='sweet spot: the best step in total iteration')
+    parser.add_argument('--total-iter', type=int, default=8, help='total step for mask scheduling')
+    parser.add_argument('--mask-func', type=str, default='cosine', help='mask scheduling function')
 
     args = parser.parse_args()
 

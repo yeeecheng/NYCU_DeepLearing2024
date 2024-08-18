@@ -81,7 +81,7 @@ if __name__ == '__main__':
     parser.add_argument('--accum-grad', type=int, default=10, help='Number for gradient accumulation.')
 
     #you can modify the hyperparameters 
-    parser.add_argument('--epochs', type=int, default=0, help='Number of epochs to train.')
+    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs to train.')
     parser.add_argument('--save-per-epoch', type=int, default=1, help='Save CKPT per ** epochs(defcault: 1)')
     parser.add_argument('--start-from-epoch', type=int, default=0, help='Number of epochs to train.')
     parser.add_argument('--ckpt-interval', type=int, default=0, help='Number of epochs to train.')
@@ -140,3 +140,6 @@ if __name__ == '__main__':
                         'history': history,
                         'best_loss': best_loss,
                         'optimizer_state_dict': train_transformer.optim.state_dict()}, "./best.pth")
+            
+
+#python training_transformer.py --train_d_path lab5_dataset/train --val_d_path lab5_dataset/val --epochs 100

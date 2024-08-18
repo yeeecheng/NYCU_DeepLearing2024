@@ -3,12 +3,14 @@ import torch
 import math
 from einops import rearrange
 
+#TODO1
 class MultiHeadAttention(nn.Module):
     def __init__(self, dim=768, num_heads=16, attn_drop=0.1):
         super(MultiHeadAttention, self).__init__()
         
         self.dim_head = dim // num_heads
         self.heads = num_heads
+        # 1 / (self.dim_head) ^ 0.5
         self.scale = self.dim_head ** -0.5
 
         self.to_qkv = nn.Linear(dim, dim * 3, bias= False)
@@ -28,15 +30,17 @@ class MultiHeadAttention(nn.Module):
             d_k , d_v for one head will be 768//16.
         '''
         h = self.heads
+        # first linear to qkv
         qkv = self.to_qkv(x)
-        q, k, v = tuple(rearrange(qkv, 'b n (qkv h d) -> qkv b h n d', h=h, qkv=3))
-        
+        # divide to q, k and v
+        q, k, v = tuple(qkv.view(3, x.shape[0], h, -1, self.dim_head))
+        # scaled dot-product attention
         attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
         weight = attn.softmax(dim= -1)   
-        
         context = torch.matmul(weight, v)
-        concat_content = rearrange(context, 'b h n d -> b n (h d)', h=h)
-        
+        # concat multi-head
+        concat_content = context.view(x.shape[0], -1, self.dim_head * h)
+        # last linear
         return self.W_o(concat_content)
 
 class MLP(nn.Sequential):
