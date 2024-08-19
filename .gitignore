@@ -12,3 +12,4 @@
 /lab4/*.ckpt
 /lab5/lab5_dataset
 /lab5/models/VQGAN/checkpoints/VQGAN.pt
+/lab6/iclevr

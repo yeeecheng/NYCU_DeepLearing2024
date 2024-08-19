@@ -1,0 +1,1 @@
+pip install -qq -U diffusers datasets transformers accelerate ftfy pyarrow==9.0.0
