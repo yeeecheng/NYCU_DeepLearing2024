@@ -53,9 +53,9 @@ class CondDDPM(nn.Module):
             out_channels=3,
             layers_per_block=2,
             block_out_channels=(64, 128, 128, 256),
-            encoder_hid_dim = 64
+            encoder_hid_dim = 128
         )
-
+        
         self.encoder = nn.Linear(class_emb_size, 64 * 64)
 
     def forward(self, x, t, class_labels):

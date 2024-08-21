@@ -10,6 +10,8 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms as transforms
 import os
+import torchvision
+import matplotlib.pyplot as plt
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
@@ -32,7 +34,7 @@ class Trainer():
                                 objects_path= args.objects_file_path,
                                 mode= "new_test")
         self.val_loader = DataLoader(val_dataset,
-                                    batch_size= args.batch_size,
+                                    batch_size= 32,
                                     num_workers= args.num_workers,
                                     pin_memory= True,
                                     shuffle= False
@@ -55,7 +57,7 @@ class Trainer():
             checkpoint = torch.load(args.pre_train)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optim.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.noise_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            # self.noise_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             self.prev_epochs = checkpoint['epoch']
             self.history = checkpoint['history']
             self.best_loss = checkpoint['best_loss']
@@ -116,18 +118,12 @@ class Trainer():
                         self.save_img(img, epoch, i)
 
 
-
-    def save_img(self, img, epoch, i):
-        self.transform = transforms.Compose([
-            transforms.Normalize(mean= [-1.0, -1.0, -1.0], std= [2.0, 2.0, 2.0]),
-            transforms.ToPILImage()
-        ])
+    def save_img(self, img, epoch):
+        de_normalize = transforms.Normalize(mean= [-1.0, -1.0, -1.0], std= [2.0, 2.0, 2.0])
+        de_img = de_normalize(img)
         
-        if not os.path.isdir(f"./result/{epoch}"):
-            os.mkdir(f"./result/{epoch}")
-        for j in range(img.shape[0]):
-            out_img = self.transform(img[j])
-            out_img.save(f'./result/{epoch}/{32 * i + j}.png')
+        plt.imshow(torchvision.transforms.ToPILImage()(torchvision.utils.make_grid(de_img, nrow=8)))
+        plt.savefig(f'./result/{epoch}.png')
 
 
 
