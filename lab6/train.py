@@ -115,7 +115,7 @@ class Trainer():
                             img = self.noise_scheduler.step(residual, t, img).prev_sample
                             pbar.set_description_str(f"[Val] epoch: {epoch + 1} / {self.epochs}, T: {t}")
                         
-                        self.save_img(img, epoch, i)
+                        self.save_img(img, epoch)
 
 
     def save_img(self, img, epoch):
