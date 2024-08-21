@@ -11,6 +11,8 @@ from PIL import Image
 import torchvision.transforms as transforms
 import os
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecated")
 class Trainer():
 
     def __init__(self, args):
@@ -29,16 +31,15 @@ class Trainer():
                                 json_path= args.test_json_path,
                                 objects_path= args.objects_file_path,
                                 mode= "new_test")
-        
         self.val_loader = DataLoader(val_dataset,
-                                    batch_size= 1,
+                                    batch_size= args.batch_size,
                                     num_workers= args.num_workers,
                                     pin_memory= True,
                                     shuffle= False
                                 )
 
         # create a scheduler, adding small amount of noise for every time steps
-        self.noise_scheduler = DDPMScheduler(num_train_timesteps= 1000, beta_schedule='squaredcos_cap_v2')
+        self.noise_scheduler = DDPMScheduler(num_train_timesteps= 1000)
         self.model = DDPM().to(args.device)
         self.loss_fn = nn.MSELoss()
         self.optim = torch.optim.Adam(self.model.parameters(), lr= args.learning_rate)
@@ -51,10 +52,10 @@ class Trainer():
         self.history = {"train_loss": list()}
         self.best_loss = np.inf
         if args.pre_train is not None:
-            checkpoint = torch.load(args.checkpoint_path)
+            checkpoint = torch.load(args.pre_train)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optim.load_state_dict(checkpoint['optimizer_state_dict'])
-            # self.noise_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.noise_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             self.prev_epochs = checkpoint['epoch']
             self.history = checkpoint['history']
             self.best_loss = checkpoint['best_loss']
@@ -68,7 +69,6 @@ class Trainer():
             pbar = tqdm(enumerate(self.train_loader))
             
             for i, (img, label) in pbar:
-                
                 img = img.to(self.device)
                 label = label.to(self.device)
                 noise = torch.randn_like(img)
@@ -82,8 +82,8 @@ class Trainer():
                 self.optim.step()
 
                 train_batch_loss.append(loss.item())
-                pbar.set_description_str(f"epoch: {epoch + 1} / {self.epochs}, iter: {i + 1} / {len(self.train_loader)}, loss: {np.mean(train_batch_loss)}")
-            
+                pbar.set_description_str(f"[Train] epoch: {epoch + 1} / {self.epochs}, iter: {i + 1} / {len(self.train_loader)}, loss: {np.mean(train_batch_loss)}")
+    
             # save model
             train_loss = np.mean(train_batch_loss)
             if self.best_loss > train_loss:
@@ -107,11 +107,13 @@ class Trainer():
                     for i, label in pbar:
                         label = label.to(self.device)
                         # sample from normal distribution
-                        img = torch.randn(1, 3, 64, 64).to(self.device)
+                        img = torch.randn(label.shape[0], 3, 64, 64).to(self.device)
                         for t in self.noise_scheduler.timesteps:
                             residual = self.model(img, t, label)
                             img = self.noise_scheduler.step(residual, t, img).prev_sample
-                        self.save_img(img[0], epoch, i)
+                            pbar.set_description_str(f"[Val] epoch: {epoch + 1} / {self.epochs}, T: {t}")
+                        
+                        self.save_img(img, epoch, i)
 
 
 
@@ -123,8 +125,9 @@ class Trainer():
         
         if not os.path.isdir(f"./result/{epoch}"):
             os.mkdir(f"./result/{epoch}")
-        out_img = self.transform(img)
-        out_img.save(f'./result/{epoch}/{i}.png')
+        for j in range(img.shape[0]):
+            out_img = self.transform(img[j])
+            out_img.save(f'./result/{epoch}/{32 * i + j}.png')
 
 
 
@@ -136,12 +139,12 @@ if __name__ == "__main__":
     parser.add_argument("--train_json_path", type= str, default= "./file/train.json", help= "training label json")
     parser.add_argument("--test_json_path", type= str, default= "./file/new_test.json", help= "testing label path")
     parser.add_argument("--objects_file_path", type= str, default= "./file/objects.json", help= "objects json path which has all classification")
-    parser.add_argument("--batch_size", type= str, default= 32 , help= "train batch size")
+    parser.add_argument("--batch_size", type= str, default= 64 , help= "train batch size")
     parser.add_argument("--num_workers", type= int, default= 4, help= "number of worker")
-    parser.add_argument("--epochs", type= int, default= 100, help= "training epochs")
+    parser.add_argument("--epochs", type= int, default= 300, help= "training epochs")
     parser.add_argument("--learning-rate", type= float, default= 1e-4, help= "number of training learning rate") 
     parser.add_argument("--save_path", type= str, default= "./best.ckpt", help= "path which save best model")
-    parser.add_argument("--save_img_per_epoch", type= int, default= 1, help= "which epoch needed save image")
+    parser.add_argument("--save_img_per_epoch", type= int, default= 5, help= "which epoch needed save image")
     parser.add_argument("--save_model_per_epoch", type= int, default= 1)
     parser.add_argument("--pre-train", type= str, default= None, help= "pre train model")
 
