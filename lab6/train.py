@@ -135,7 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--train_json_path", type= str, default= "./file/train.json", help= "training label json")
     parser.add_argument("--test_json_path", type= str, default= "./file/new_test.json", help= "testing label path")
     parser.add_argument("--objects_file_path", type= str, default= "./file/objects.json", help= "objects json path which has all classification")
-    parser.add_argument("--batch_size", type= str, default= 64 , help= "train batch size")
+    parser.add_argument("--batch_size", type= int, default= 64 , help= "train batch size")
     parser.add_argument("--num_workers", type= int, default= 4, help= "number of worker")
     parser.add_argument("--epochs", type= int, default= 300, help= "training epochs")
     parser.add_argument("--learning-rate", type= float, default= 1e-4, help= "number of training learning rate") 
